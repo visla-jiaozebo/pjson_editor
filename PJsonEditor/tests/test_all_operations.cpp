@@ -45,7 +45,7 @@ int main() {
     std::cout << "1. Testing addScene..." << std::endl;
     ExtendedProjectSceneAddReqBody addReq;
     addReq.name = "New Scene";
-    addReq.insertAfterUuid = "scene-001";
+    // addReq.insertAfterUuid = "scene-001";
     addReq.duration = 2000;
     addReq.sceneType = SceneTypeEnum::DEFAULT;
     
