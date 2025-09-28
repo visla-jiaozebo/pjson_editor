@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PJsonEditor WebAssembly Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+        
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: 500;
+            text-align: center;
+        }
+        
+        .status.loading {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .panel {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+        }
+        
+        .panel h3 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.3rem;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 8px;
+        }
+        
+        .panel h4 {
+            color: #34495e;
+            margin: 15px 0 10px 0;
+            font-size: 1rem;
+        }
+        
+        input, button, select {
+            width: 100%;
+            padding: 12px;
+            margin: 5px 0;
+            border: 2px solid #e1e8ed;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+        }
+        
+        button {
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        button:hover:not(:disabled) {
+            background: linear-gradient(135deg, #2980b9, #3498db);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+        }
+        
+        button:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .output-panel {
+            grid-column: 1 / -1;
+            margin-top: 20px;
+        }
+        
+        #output {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 13px;
+            height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            line-height: 1.5;
+        }
+        
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        
+        .scene-list {
+            max-height: 200px;
+            overflow-y: auto;
+            background: #f8f9fa;
+            border-radius: 6px;
+            padding: 10px;
+            margin-top: 10px;
+        }
+        
+        .scene-item {
+            padding: 8px;
+            background: white;
+            margin: 5px 0;
+            border-radius: 4px;
+            border-left: 4px solid #3498db;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎬 PJsonEditor WebAssembly Demo</h1>
+        <p>Interactive C++ Project Editor running in your browser</p>
+    </div>
+
+    <div id="status" class="status loading">⏳ Loading WebAssembly module...</div>
+
+    <div class="container">
+        <div class="panel">
+            <h3>📊 Project Management</h3>
+            <button onclick="initializeProject()" id="initBtn">Initialize Project</button>
+            <button onclick="getProjectStats()" id="statsBtn" disabled>Get Statistics</button>
+            <button onclick="listScenes()" id="listBtn" disabled>List All Scenes</button>
+            
+            <div id="projectInfo" style="margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 6px;">
+                <em>No project loaded</em>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h3>🎭 Scene Operations</h3>
+            <div>
+                <h4>Add New Scene</h4>
+                <input type="text" id="newSceneName" placeholder="Scene Name" value="New Scene">
+                <input type="number" id="sceneDuration" placeholder="Duration (ms)" value="5000">
+                <button onclick="addNewScene()" id="addSceneBtn" disabled>Add Scene</button>
+            </div>
+            
+            <div style="margin-top: 20px;">
+                <h4>Rename Scene</h4>
+                <input type="text" id="sceneUuid" placeholder="Scene UUID" value="">
+                <input type="text" id="newSceneNameRename" placeholder="New Name" value="Updated Scene">
+                <button onclick="renameScene()" id="renameBtn" disabled>Rename Scene</button>
+            </div>
+            
+            <div style="margin-top: 20px;">
+                <h4>Delete Scene</h4>
+                <input type="text" id="deleteSceneUuid" placeholder="Scene UUID" value="">
+                <button onclick="deleteScene()" id="deleteBtn" disabled>Delete Scene</button>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h3>🎥 Footage Management</h3>
+            <div>
+                <h4>Add Footage to Scene</h4>
+                <input type="text" id="footageSceneUuid" placeholder="Scene UUID" value="">
+                <input type="text" id="assetUuid" placeholder="Asset UUID" value="asset-123">
+                <div class="grid-2">
+                    <input type="number" id="timeOffset" placeholder="Time Offset (ms)" value="1000">
+                    <input type="number" id="duration" placeholder="Duration (ms)" value="2000">
+                </div>
+                <button onclick="addFootage()" id="addFootageBtn" disabled>Add Footage</button>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h3>🔧 Advanced Operations</h3>
+            <div>
+                <h4>Split Scene</h4>
+                <input type="text" id="splitSceneUuid" placeholder="Scene UUID" value="">
+                <input type="number" id="splitTime" placeholder="Split Time (ms)" value="2500">
+                <button onclick="splitScene()" id="splitBtn" disabled>Split Scene</button>
+            </div>
+            
+            <div style="margin-top: 20px;">
+                <h4>Merge Scenes</h4>
+                <input type="text" id="mergeSceneUuids" placeholder='Scene UUIDs (JSON array, e.g., ["scene-1","scene-2"])' value='["scene-1","scene-2"]'>
+                <button onclick="mergeScenes()" id="mergeBtn" disabled>Merge Scenes</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="panel output-panel">
+        <h3>📋 Console Output</h3>
+        <div id="output">Welcome to PJsonEditor WebAssembly Demo!\nLoading module...</div>
+    </div>
+
+    <script>
+        let Module = null;
+        let isInitialized = false;
+
+        // Status management
+        function setStatus(message, type = 'loading') {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+        }
+
+        // Output management
+        function addOutput(message, isError = false) {
+            const output = document.getElementById('output');
+            const timestamp = new Date().toLocaleTimeString();
+            const prefix = isError ? '❌ ERROR' : '✅ SUCCESS';
+            output.textContent += `\n[${timestamp}] ${prefix}: ${message}`;
+            output.scrollTop = output.scrollHeight;
+        }
+
+        // Button state management
+        function updateButtonStates() {
+            const buttons = ['statsBtn', 'listBtn', 'renameBtn', 'addFootageBtn', 'addSceneBtn', 'deleteBtn', 'splitBtn', 'mergeBtn'];
+            buttons.forEach(id => {
+                document.getElementById(id).disabled = !isInitialized;
+            });
+        }
+
+        // Initialize project
+        function initializeProject() {
+            if (!Module) {
+                addOutput('WebAssembly module not loaded yet', true);
+                return;
+            }
+
+            try {
+                const result = Module.initializeAPI('{}');
+                if (result) {
+                    isInitialized = true;
+                    updateButtonStates();
+                    setStatus('✅ Project initialized successfully!', 'success');
+                    addOutput('Project initialized with PJsonEditor WebAssembly module');
+                    
+                    // Update project info
+                    document.getElementById('projectInfo').innerHTML = `
+                        <strong>Project:</strong> Default Project<br>
+                        <strong>UUID:</strong> default-project<br>
+                        <strong>Status:</strong> Ready for operations<br>
+                        <strong>WebAssembly:</strong> Active
+                    `;
+                    
+                    // Automatically get stats
+                    getProjectStats();
+                } else {
+                    addOutput('Failed to initialize project', true);
+                }
+            } catch (error) {
+                addOutput(`Failed to initialize: ${error.message}`, true);
+            }
+        }
+
+        // Get project statistics
+        function getProjectStats() {
+            if (!Module || !isInitialized) return;
+            
+            try {
+                const stats = Module.getProjectStats();
+                const statsObj = JSON.parse(stats);
+                addOutput(`Project Stats: ${stats}`);
+                
+                document.getElementById('projectInfo').innerHTML = `
+                    <strong>Project UUID:</strong> ${statsObj.projectUuid}<br>
+                    <strong>Owner UUID:</strong> ${statsObj.ownerUuid}<br>
+                    <strong>Scene Count:</strong> ${statsObj.sceneCount}<br>
+                    <strong>Timeline Count:</strong> ${statsObj.timelineCount}<br>
+                    <strong>Asset Count:</strong> ${statsObj.assetCount}<br>
+                    <strong>Total Duration:</strong> ${statsObj.totalDurationMs}ms
+                `;
+            } catch (error) {
+                addOutput(`Failed to get stats: ${error.message}`, true);
+            }
+        }
+
+        // List all scenes
+        function listScenes() {
+            if (!Module || !isInitialized) return;
+            
+            try {
+                const sceneList = Module.getSceneList();
+                const scenes = JSON.parse(sceneList);
+                addOutput(`Scene List: ${sceneList}`);
+                
+                if (Array.isArray(scenes) && scenes.length > 0) {
+                    // Update UI placeholders with first scene UUID
+                    const firstSceneUuid = scenes[0].uuid;
+                    document.getElementById('sceneUuid').value = firstSceneUuid;
+                    document.getElementById('footageSceneUuid').value = firstSceneUuid;
+                    document.getElementById('deleteSceneUuid').value = firstSceneUuid;
+                    document.getElementById('splitSceneUuid').value = firstSceneUuid;
+                }
+            } catch (error) {
+                addOutput(`Failed to list scenes: ${error.message}`, true);
+            }
+        }
+
+        // Add new scene
+        function addNewScene() {
+            if (!Module || !isInitialized) return;
+            
+            const name = document.getElementById('newSceneName').value;
+            const duration = parseInt(document.getElementById('sceneDuration').value);
+            
+            if (!name) {
+                addOutput('Please provide a scene name', true);
+                return;
+            }
+            
+            try {
+                const result = Module.addScene(name, duration);
+                const resultObj = JSON.parse(result);
+                
+                if (resultObj.success) {
+                    addOutput(`Scene "${name}" added successfully`);
+                    listScenes(); // Refresh scene list
+                    getProjectStats(); // Update stats
+                } else {
+                    addOutput(`Failed to add scene: ${resultObj.message}`, true);
+                }
+            } catch (error) {
+                addOutput(`Failed to add scene: ${error.message}`, true);
+            }
+        }
+
+        // Rename scene
+        function renameScene() {
+            if (!Module || !isInitialized) return;
+            
+            const sceneUuid = document.getElementById('sceneUuid').value;
+            const newName = document.getElementById('newSceneNameRename').value;
+            
+            if (!sceneUuid || !newName) {
+                addOutput('Please provide scene UUID and new name', true);
+                return;
+            }
+            
+            try {
+                const result = Module.renameScene(sceneUuid, newName);
+                const resultObj = JSON.parse(result);
+                
+                if (resultObj.success) {
+                    addOutput(`Scene "${sceneUuid}" renamed to "${newName}"`);
+                    listScenes(); // Refresh scene list
+                } else {
+                    addOutput(`Failed to rename scene: ${resultObj.message}`, true);
+                }
+            } catch (error) {
+                addOutput(`Failed to rename scene: ${error.message}`, true);
+            }
+        }
+
+        // Delete scene
+        function deleteScene() {
+            if (!Module || !isInitialized) return;
+            
+            const sceneUuid = document.getElementById('deleteSceneUuid').value;
+            
+            if (!sceneUuid) {
+                addOutput('Please provide scene UUID', true);
+                return;
+            }
+            
+            try {
+                const result = Module.deleteScene(sceneUuid);
+                const resultObj = JSON.parse(result);
+                
+                if (resultObj.success) {
+                    addOutput(`Scene "${sceneUuid}" deleted successfully`);
+                    listScenes(); // Refresh scene list
+                    getProjectStats(); // Update stats
+                } else {
+                    addOutput(`Failed to delete scene: ${resultObj.message}`, true);
+                }
+            } catch (error) {
+                addOutput(`Failed to delete scene: ${error.message}`, true);
+            }
+        }
+
+        // Add footage
+        function addFootage() {
+            if (!Module || !isInitialized) return;
+            
+            const sceneUuid = document.getElementById('footageSceneUuid').value;
+            const assetUuid = document.getElementById('assetUuid').value;
+            const timeOffset = parseInt(document.getElementById('timeOffset').value);
+            const duration = parseInt(document.getElementById('duration').value);
+            
+            if (!sceneUuid || !assetUuid || isNaN(timeOffset) || isNaN(duration)) {
+                addOutput('Please provide all footage parameters', true);
+                return;
+            }
+            
+            try {
+                const result = Module.addFootage(sceneUuid, assetUuid, timeOffset, duration);
+                const resultObj = JSON.parse(result);
+                
+                if (resultObj.success) {
+                    addOutput(`Footage added to scene "${sceneUuid}"`);
+                } else {
+                    addOutput(`Failed to add footage: ${resultObj.message}`, true);
+                }
+            } catch (error) {
+                addOutput(`Failed to add footage: ${error.message}`, true);
+            }
+        }
+
+        // Split scene
+        function splitScene() {
+            if (!Module || !isInitialized) return;
+            
+            const sceneUuid = document.getElementById('splitSceneUuid').value;
+            const splitTime = parseInt(document.getElementById('splitTime').value);
+            
+            if (!sceneUuid || isNaN(splitTime)) {
+                addOutput('Please provide scene UUID and split time', true);
+                return;
+            }
+            
+            try {
+                const result = Module.splitScene(sceneUuid, splitTime);
+                const resultObj = JSON.parse(result);
+                
+                if (resultObj.success) {
+                    addOutput(`Scene "${sceneUuid}" split at ${splitTime}ms`);
+                    listScenes(); // Refresh scene list
+                    getProjectStats(); // Update stats
+                } else {
+                    addOutput(`Failed to split scene: ${resultObj.message}`, true);
+                }
+            } catch (error) {
+                addOutput(`Failed to split scene: ${error.message}`, true);
+            }
+        }
+
+        // Merge scenes
+        function mergeScenes() {
+            if (!Module || !isInitialized) return;
+            
+            const sceneUuidsJson = document.getElementById('mergeSceneUuids').value;
+            
+            if (!sceneUuidsJson) {
+                addOutput('Please provide scene UUIDs array', true);
+                return;
+            }
+            
+            try {
+                const result = Module.mergeScenes(sceneUuidsJson);
+                const resultObj = JSON.parse(result);
+                
+                if (resultObj.success) {
+                    addOutput(`Scenes merged successfully`);
+                    listScenes(); // Refresh scene list
+                    getProjectStats(); // Update stats
+                } else {
+                    addOutput(`Failed to merge scenes: ${resultObj.message}`, true);
+                }
+            } catch (error) {
+                addOutput(`Failed to merge scenes: ${error.message}`, true);
+            }
+        }
+
+        // Load WebAssembly module
+        async function loadWasmModule() {
+            try {
+                addOutput('Loading WebAssembly module...');
+                
+                // Import the WebAssembly module
+                const PJsonEditor = await import('./pjson_editor_web.js');
+                Module = await PJsonEditor.default();
+                
+                setStatus('🎉 WebAssembly module loaded successfully! Click "Initialize Project" to start.', 'success');
+                document.getElementById('initBtn').disabled = false;
+                addOutput('WebAssembly module loaded and ready');
+                addOutput('Available functions: initializeAPI, addScene, renameScene, deleteScene, splitScene, mergeScenes, addFootage');
+            } catch (error) {
+                setStatus('❌ Failed to load WebAssembly module', 'error');
+                addOutput(`Failed to load WebAssembly: ${error.message}`, true);
+            }
+        }
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            addOutput('Demo page loaded');
+            addOutput('PJsonEditor WebAssembly Demo - Interactive C++ project editor in your browser');
+            loadWasmModule();
+        });
+    </script>
+</body>
+</html>

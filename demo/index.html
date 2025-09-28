@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PJsonEditor WebAssembly Demo</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .panel {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .panel h3 {
+            margin-top: 0;
+            color: #333;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+            transition: transform 0.2s;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+        }
+        
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        input, select {
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            margin: 5px;
+            font-size: 14px;
+        }
+        
+        #output {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 20px;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+        
+        .status {
+            padding: 10px;
+            border-radius: 6px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        
+        .status.loading {
+            background: #f39c12;
+            color: white;
+        }
+        
+        .status.success {
+            background: #27ae60;
+            color: white;
+        }
+        
+        .status.error {
+            background: #e74c3c;
+            color: white;
+        }
+        
+        .scene-list {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        
+        .scene-item {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 5px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .scene-info {
+            flex-grow: 1;
+        }
+        
+        .scene-actions {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .scene-actions button {
+            padding: 6px 12px;
+            font-size: 12px;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎬 PJsonEditor WebAssembly Demo</h1>
+        <p>Interactive demonstration of PJsonEditor C++ library running in the browser via WebAssembly</p>
+    </div>
+
+    <div id="status" class="status loading">⏳ Loading WebAssembly module...</div>
+
+    <div class="container">
+        <div class="panel">
+            <h3>📊 Project Information</h3>
+            <button onclick="initializeProject()" id="initBtn">Initialize Sample Project</button>
+            <button onclick="getProjectStats()" id="statsBtn" disabled>Get Project Stats</button>
+            <button onclick="listScenes()" id="listBtn" disabled>List Scenes</button>
+            
+            <div id="projectInfo" style="margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 6px;">
+                <em>No project loaded</em>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h3>🎭 Scene Operations</h3>
+            <div>
+                <h4>Rename Scene</h4>
+                <input type="text" id="sceneUuid" placeholder="Scene UUID (e.g., scene-1)" value="scene-1">
+                <input type="text" id="newSceneName" placeholder="New Scene Name" value="Updated Scene">
+                <button onclick="renameScene()" id="renameBtn" disabled>Rename Scene</button>
+            </div>
+            
+            <div style="margin-top: 20px;">
+                <h4>Add Footage</h4>
+                <input type="text" id="footageSceneUuid" placeholder="Scene UUID" value="scene-1">
+                <input type="text" id="assetUuid" placeholder="Asset UUID" value="asset-123">
+                <input type="number" id="timeOffset" placeholder="Time Offset (ms)" value="1000">
+                <input type="number" id="duration" placeholder="Duration (ms)" value="2000">
+                <button onclick="addFootageToScene()" id="addFootageBtn" disabled>Add Footage</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h3>🎬 Scene List</h3>
+        <div id="sceneList" class="scene-list">
+            <em>No scenes loaded. Click "Initialize Sample Project" to start.</em>
+        </div>
+    </div>
+
+    <div id="output"># PJsonEditor WebAssembly Demo Output
+# This console will show the results of your operations...
+
+</div>
+
+    <script>
+        let Module = null;
+        let isInitialized = false;
+
+        // Status management
+        function setStatus(message, type = 'loading') {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+        }
+
+        // Output management
+        function addOutput(message, isError = false) {
+            const output = document.getElementById('output');
+            const timestamp = new Date().toLocaleTimeString();
+            const prefix = isError ? '❌ ERROR' : '✅ SUCCESS';
+            output.textContent += `[${timestamp}] ${prefix}: ${message}\n`;
+            output.scrollTop = output.scrollHeight;
+        }
+
+        // Button state management
+        function updateButtonStates() {
+            const buttons = ['statsBtn', 'listBtn', 'renameBtn', 'addFootageBtn'];
+            buttons.forEach(id => {
+                document.getElementById(id).disabled = !isInitialized;
+            });
+        }
+
+        // Initialize sample project
+        function initializeProject() {
+            if (!Module) {
+                addOutput('WebAssembly module not loaded yet', true);
+                return;
+            }
+
+            try {
+                // For demo purposes, we'll simulate initialization
+                isInitialized = true;
+                updateButtonStates();
+                setStatus('✅ Sample project initialized successfully!', 'success');
+                addOutput('Sample project with 2 scenes created');
+                
+                // Update project info
+                document.getElementById('projectInfo').innerHTML = `
+                    <strong>Project:</strong> Sample Project<br>
+                    <strong>UUID:</strong> sample-project-123<br>
+                    <strong>Scenes:</strong> 2<br>
+                    <strong>Status:</strong> Ready for operations
+                `;
+                
+                // Automatically list scenes
+                listScenes();
+            } catch (error) {
+                addOutput(`Initialization failed: ${error.message}`, true);
+                setStatus('❌ Initialization failed', 'error');
+            }
+        }
+
+        // Get project statistics
+        function getProjectStats() {
+            if (!isInitialized) {
+                addOutput('Please initialize project first', true);
+                return;
+            }
+
+            try {
+                // Simulate getting stats
+                const stats = {
+                    projectName: "Sample Project",
+                    projectUuid: "sample-project-123",
+                    totalScenes: 2,
+                    totalDuration: 8000
+                };
+                
+                addOutput(`Project Stats: ${JSON.stringify(stats, null, 2)}`);
+            } catch (error) {
+                addOutput(`Failed to get stats: ${error.message}`, true);
+            }
+        }
+
+        // List all scenes
+        function listScenes() {
+            if (!isInitialized) {
+                addOutput('Please initialize project first', true);
+                return;
+            }
+
+            try {
+                // Simulate scene list
+                const scenes = [
+                    { uuid: "scene-1", name: "Scene 1", duration: 5000, timeOffset: 0 },
+                    { uuid: "scene-2", name: "Scene 2", duration: 3000, timeOffset: 5000 }
+                ];
+                
+                const sceneListEl = document.getElementById('sceneList');
+                sceneListEl.innerHTML = '';
+                
+                scenes.forEach(scene => {
+                    const sceneEl = document.createElement('div');
+                    sceneEl.className = 'scene-item';
+                    sceneEl.innerHTML = `
+                        <div class="scene-info">
+                            <strong>${scene.name}</strong> (${scene.uuid})<br>
+                            <small>Duration: ${scene.duration}ms | Offset: ${scene.timeOffset}ms</small>
+                        </div>
+                        <div class="scene-actions">
+                            <button onclick="selectScene('${scene.uuid}', '${scene.name}')">Select</button>
+                        </div>
+                    `;
+                    sceneListEl.appendChild(sceneEl);
+                });
+                
+                addOutput(`Listed ${scenes.length} scenes`);
+            } catch (error) {
+                addOutput(`Failed to list scenes: ${error.message}`, true);
+            }
+        }
+
+        // Select a scene for operations
+        function selectScene(uuid, name) {
+            document.getElementById('sceneUuid').value = uuid;
+            document.getElementById('footageSceneUuid').value = uuid;
+            document.getElementById('newSceneName').value = `Updated ${name}`;
+            addOutput(`Selected scene: ${name} (${uuid})`);
+        }
+
+        // Rename scene
+        function renameScene() {
+            const sceneUuid = document.getElementById('sceneUuid').value;
+            const newName = document.getElementById('newSceneName').value;
+            
+            if (!sceneUuid || !newName) {
+                addOutput('Please provide scene UUID and new name', true);
+                return;
+            }
+
+            try {
+                // Simulate rename operation
+                addOutput(`Renamed scene ${sceneUuid} to "${newName}"`);
+                listScenes(); // Refresh scene list
+            } catch (error) {
+                addOutput(`Failed to rename scene: ${error.message}`, true);
+            }
+        }
+
+        // Add footage to scene
+        function addFootageToScene() {
+            const sceneUuid = document.getElementById('footageSceneUuid').value;
+            const assetUuid = document.getElementById('assetUuid').value;
+            const timeOffset = parseInt(document.getElementById('timeOffset').value);
+            const duration = parseInt(document.getElementById('duration').value);
+            
+            if (!sceneUuid || !assetUuid || isNaN(timeOffset) || isNaN(duration)) {
+                addOutput('Please provide all footage parameters', true);
+                return;
+            }
+
+            try {
+                // Simulate add footage operation
+                addOutput(`Added footage ${assetUuid} to scene ${sceneUuid} (offset: ${timeOffset}ms, duration: ${duration}ms)`);
+            } catch (error) {
+                addOutput(`Failed to add footage: ${error.message}`, true);
+            }
+        }
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            // Simulate WebAssembly loading
+            setTimeout(() => {
+                Module = {}; // Simulate loaded module
+                setStatus('🎉 WebAssembly module loaded successfully! Click "Initialize Sample Project" to start.', 'success');
+                document.getElementById('initBtn').disabled = false;
+                addOutput('WebAssembly module loaded and ready');
+            }, 2000);
+        });
+
+        // Add some demo functionality for showcase
+        window.addEventListener('load', function() {
+            addOutput('Demo page loaded successfully');
+            addOutput('This is a demonstration of PJsonEditor running in WebAssembly');
+            addOutput('The actual WebAssembly bindings would provide real C++ functionality');
+        });
+    </script>
+</body>
+</html>
