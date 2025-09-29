@@ -1,1 +1,3 @@
 build_wasm
+build_debug
+example/build_optional

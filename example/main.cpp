@@ -1,10 +1,13 @@
-#include "pjson_editor/ExtendedAPI.h"
 #include <iostream>
-
-using namespace pjson;
+#include <pjson_editor/ExtendedAPI.h>
+#include <pjson_editor/ExtendedModels.h>
+#include <pjson_editor/TranscriptUtils.h>
 
 int main() {
-    ExtendedControllerAPI api;
+    std::cout << "PJsonEditor Example" << std::endl;
+    std::cout << "Successfully linked with PJsonEditor library!" << std::endl;
+    
+        ExtendedControllerAPI api;
     
     // Test adding a scene
     ExtendedProjectSceneAddReqBody addReq;

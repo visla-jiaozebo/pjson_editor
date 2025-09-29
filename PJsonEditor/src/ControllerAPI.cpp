@@ -13,6 +13,7 @@ std::string genUuid() {
     return "uuid-" + std::to_string(++counter);
 }
 
+pjson::ExtendedProjectAndScenesVo EMPTY_PROJECT;
 // Stub implementations
 ApiResult ExtendedControllerAPI::addScene(const ExtendedProjectSceneAddReqBody& reqBody) {
     if (!dataStore) {

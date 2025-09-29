@@ -3,6 +3,7 @@
 #define PJSON_EDITOR_EXTENDED_API_H
 
 #include "ExtendedModels.h"
+#include <cassert>
 #include <nlohmann/json.hpp>
 #include <string>
 #include <vector>
@@ -108,9 +109,11 @@ public:
 
 } // namespace pjson
 
+extern pjson::ExtendedProjectAndScenesVo EMPTY_PROJECT; // global for inline method
 // Inline method implementations after class definitions
 inline const pjson::ExtendedProjectAndScenesVo& pjson::ExtendedControllerAPI::getCurrentProjectData() const {
-    return dataStore ? dataStore->getCurrentProjectData() : *(ExtendedProjectAndScenesVo*)nullptr;
+    assert(dataStore && "Data store not set in ExtendedControllerAPI");
+    return dataStore ? dataStore->getCurrentProjectData() : EMPTY_PROJECT;
 }
 
 #endif // PJSON_EDITOR_EXTENDED_API_H
