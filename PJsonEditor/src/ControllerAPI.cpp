@@ -23,11 +23,8 @@ ApiResult ExtendedControllerAPI::addScene(const ExtendedProjectSceneAddReqBody& 
     
     nlohmann::json patches = nlohmann::json::array();
     
-    // Step 1: Validate project has existing scenes
+    // Step 1: Get project scenes
     auto& scenes = dataStore->getProject().scenes;
-    if (scenes.empty()) {
-        return ApiResult(false, "Project has no existing scenes");
-    }
     
     // Step 2: Validate insertion position and intro/outro restrictions
     int addPosition = reqBody.addPosition;
@@ -101,12 +98,8 @@ ApiResult ExtendedControllerAPI::addScene(const ExtendedProjectSceneAddReqBody& 
     SceneTypeEnum sceneType = SceneTypeEnum::DEFAULT;
     if (reqBody.sceneType.has_value()) {
         sceneType = reqBody.sceneType.value();
-    } else {
-        // Auto-determine type based on position like API does
-        if (addPosition >= static_cast<int>(scenes.size())) {
-            sceneType = SceneTypeEnum::BLANK_SCENE; // Last position gets blank scene
-        }
     }
+    // Use DEFAULT if no scene type specified
     newScene.sceneType = sceneType;
     
     newScene.duration = duration;
@@ -179,7 +172,10 @@ ApiResult ExtendedControllerAPI::renameScene(const ExtendedProjectSceneRenameReq
         {"value", reqBody.name}
     });
     
-    return ApiResult(true, "Scene renamed successfully", patch);
+    // Step 5: Create ProjectAndSceneVo equivalent data for API compatibility
+    nlohmann::json resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
+    
+    return ApiResult(true, "Scene renamed successfully", patch, resultData);
 }
 
 ApiResult ExtendedControllerAPI::moveScene(const ExtendedProjectSceneMoveReqBody& reqBody) {
@@ -340,7 +336,10 @@ ApiResult ExtendedControllerAPI::moveScene(const ExtendedProjectSceneMoveReqBody
     // Step 10: Recompute all offsets to ensure consistency
     dataStore->recomputeOffsets();
     
-    return ApiResult(true, "Scene moved successfully with complete offset recalculation", patches);
+    // Step 11: Create Integer return data for API compatibility (Java API returns Integer)
+    nlohmann::json resultData = static_cast<int>(scenes.size()); // Return scene count as Integer
+    
+    return ApiResult(true, "Scene moved successfully with complete offset recalculation", patches, resultData);
 }
 
 ApiResult ExtendedControllerAPI::setSceneTime(const ExtendedProjectSceneSetTimeReqBody& reqBody) {
@@ -461,7 +460,10 @@ ApiResult ExtendedControllerAPI::setSceneTime(const ExtendedProjectSceneSetTimeR
     // Step 9: Recompute all offsets to ensure consistency
     dataStore->recomputeOffsets();
     
-    return ApiResult(true, "Scene time updated successfully with timeline adjustments", patches);
+    // Step 10: Create ProjectAndSceneVo equivalent data for API compatibility
+    nlohmann::json resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
+    
+    return ApiResult(true, "Scene time updated successfully with timeline adjustments", patches, resultData);
 }
 
 ApiResult ExtendedControllerAPI::cutScene(const ExtendedProjectSceneCutReqBody& reqBody) {
@@ -864,10 +866,27 @@ ApiResult ExtendedControllerAPI::deleteScene(const ExtendedProjectSceneDeleteReq
     // Step 10: Recompute all offsets to ensure consistency
     dataStore->recomputeOffsets();
     
-    return ApiResult(true, "Scene deleted successfully with complete offset recalculation", patches);
+    // Step 11: Create Integer return data for API compatibility (Java API returns Integer - remaining scene count)
+    nlohmann::json resultData = static_cast<int>(scenes.size());
+    
+    return ApiResult(true, "Scene deleted successfully with complete offset recalculation", patches, resultData);
 }
 
 ApiResult ExtendedControllerAPI::clearFootage(const ExtendedProjectSceneClearFootageReqBody& reqBody) {
+    if (!dataStore) {
+        return ApiResult(false, "DataStore not initialized");
+    }
+    
+    // Find target scene
+    ExtendedProjectScene* scene = dataStore->findScene(reqBody.sceneUuid);
+    if (!scene) {
+        return ApiResult(false, "Scene not found: " + reqBody.sceneUuid);
+    }
+    
+    // Clear footage from scene
+    scene->aRolls.clear();
+    scene->bRolls.clear();
+    
     nlohmann::json patch = nlohmann::json::array();
     patch.push_back({
         {"op", "replace"},
@@ -880,7 +899,10 @@ ApiResult ExtendedControllerAPI::clearFootage(const ExtendedProjectSceneClearFoo
         {"value", nlohmann::json::array()}
     });
     
-    return ApiResult(true, "Footage cleared successfully", patch);
+    // Create ProjectAndSceneVo equivalent data for API compatibility
+    nlohmann::json resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
+    
+    return ApiResult(true, "Footage cleared successfully", patch, resultData);
 }
 
 // Additional API stubs
@@ -959,7 +981,10 @@ ApiResult ExtendedControllerAPI::replaceFootage(const ProjectSceneReplaceFootage
             }}
         });
         
-        return ApiResult(true, "New footage added successfully", patches);
+        // Create ProjectAndSceneVo equivalent data for API compatibility
+        nlohmann::json resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
+        
+        return ApiResult(true, "New footage added successfully", patches, resultData);
     }
     
     // Original replace logic for non-empty timeline UUID
@@ -1017,7 +1042,10 @@ ApiResult ExtendedControllerAPI::replaceFootage(const ProjectSceneReplaceFootage
         return ApiResult(false, "Timeline not found in scene");
     }
     
-    return ApiResult(true, "Footage replaced successfully", patches);
+    // Create ProjectAndSceneVo equivalent data for API compatibility
+    nlohmann::json resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
+    
+    return ApiResult(true, "Footage replaced successfully", patches, resultData);
 }
 
 ApiResult ExtendedControllerAPI::adjustFootage(const ProjectSceneAdjustFootageReqBody& reqBody) {
@@ -1079,7 +1107,10 @@ ApiResult ExtendedControllerAPI::adjustFootage(const ProjectSceneAdjustFootageRe
         targetTimeline->cropData = reqBody.cropData.value();
     }
     
-    return ApiResult(true, "Footage adjusted successfully", patches);
+    // Create ProjectAndSceneVo equivalent data for API compatibility
+    nlohmann::json resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
+    
+    return ApiResult(true, "Footage adjusted successfully", patches, resultData);
 }
 
 ApiResult ExtendedControllerAPI::addVoiceOver(const AddVoiceOverReqBody& reqBody) {
@@ -1128,7 +1159,10 @@ ApiResult ExtendedControllerAPI::addVoiceOver(const AddVoiceOverReqBody& reqBody
         }}
     });
     
-    return ApiResult(true, "Voice over added successfully", patches);
+    // Convert to JSON data equivalent for API compatibility
+    auto resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
+    
+    return ApiResult(true, "Voice over added successfully", patches, resultData);
 }
 
 ApiResult ExtendedControllerAPI::setPauseTime(const ProjectSceneSetPauseTimeReqBody& reqBody) {
@@ -1391,7 +1425,10 @@ ApiResult ExtendedControllerAPI::addFootage(const ProjectSceneFootageAddReqBody&
         });
     }
     
-    return ApiResult(true, "Footage added successfully", patches);
+    // Create ProjectAndSceneVo equivalent data for API compatibility
+    nlohmann::json resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
+    
+    return ApiResult(true, "Footage added successfully", patches, resultData);
 }
 
 ApiResult ExtendedControllerAPI::deleteFootage(const ProjectSceneFootageDeleteReqBody& reqBody) {
@@ -1431,7 +1468,10 @@ ApiResult ExtendedControllerAPI::deleteFootage(const ProjectSceneFootageDeleteRe
         {"path", "/scenes/" + reqBody.sceneUuid + "/bRolls/" + reqBody.timelineUuid}
     });
     
-    return ApiResult(true, "Footage deleted successfully", patch);
+    // Create ProjectAndSceneVo equivalent data for API compatibility
+    nlohmann::json resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
+    
+    return ApiResult(true, "Footage deleted successfully", patch, resultData);
 }
 
 ApiResult ExtendedControllerAPI::deleteVoiceOver(const DeleteVoiceOverReqBody& reqBody) {
@@ -1463,7 +1503,10 @@ ApiResult ExtendedControllerAPI::deleteVoiceOver(const DeleteVoiceOverReqBody& r
         {"path", "/scenes/" + reqBody.sceneUuid + "/voiceOvers/" + reqBody.timelineUuid}
     });
     
-    return ApiResult(true, "Voice over deleted successfully", patch);
+    // Convert to JSON data equivalent for API compatibility
+    auto resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
+    
+    return ApiResult(true, "Voice over deleted successfully", patch, resultData);
 }
 
 ApiResult ExtendedControllerAPI::adjustVoiceOver(const AdjustVoiceOverReqBody& reqBody) {
@@ -1520,7 +1563,10 @@ ApiResult ExtendedControllerAPI::adjustVoiceOver(const AdjustVoiceOverReqBody& r
         });
     }
     
-    return ApiResult(true, "Voice over adjusted successfully", patch);
+    // Convert to JSON data equivalent for API compatibility
+    auto resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
+    
+    return ApiResult(true, "Voice over adjusted successfully", patch, resultData);
 }
 
 ApiResult ExtendedControllerAPI::editScript(const ProjectSceneEditScriptReqBody& reqBody) {
@@ -1935,7 +1981,10 @@ ApiResult ExtendedControllerAPI::addBgm(const ProjectBgmAddReqBody& reqBody) {
         }}
     });
     
-    return ApiResult(true, "BGM added successfully", patch);
+    // Convert to JSON data equivalent for API compatibility  
+    auto resultData = convertProjectToProjectAndScenesVo();
+    
+    return ApiResult(true, "BGM added successfully", patch, resultData);
 }
 
 ApiResult ExtendedControllerAPI::deleteBgm(const ProjectBgmDeleteReqBody& reqBody) {
@@ -1992,7 +2041,10 @@ ApiResult ExtendedControllerAPI::deleteBgm(const ProjectBgmDeleteReqBody& reqBod
         });
     }
     
-    return ApiResult(true, "BGM and associated assets deleted successfully", patches);
+    // Convert to JSON data equivalent for API compatibility
+    auto resultData = convertProjectToProjectAndScenesVo();
+    
+    return ApiResult(true, "BGM and associated assets deleted successfully", patches, resultData);
 }
 
 ApiResult ExtendedControllerAPI::editBgm(const ProjectBgmEditReqBody& reqBody) {
@@ -2030,7 +2082,10 @@ ApiResult ExtendedControllerAPI::editBgm(const ProjectBgmEditReqBody& reqBody) {
         });
     }
     
-    return ApiResult(true, "BGM edited successfully", patch);
+    // Convert to JSON data equivalent for API compatibility
+    auto resultData = convertProjectToProjectAndScenesVo();
+    
+    return ApiResult(true, "BGM edited successfully", patch, resultData);
 }
 
 ApiResult ExtendedControllerAPI::adjustBgmAudio(const PsSceneTimelineVolumeReqBody& reqBody) {
@@ -2044,7 +2099,10 @@ ApiResult ExtendedControllerAPI::adjustBgmAudio(const PsSceneTimelineVolumeReqBo
         });
     }
     
-    return ApiResult(true, "BGM audio adjusted successfully", patch);
+    // Convert to JSON data equivalent for API compatibility
+    auto resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
+    
+    return ApiResult(true, "BGM audio adjusted successfully", patch, resultData);
 }
 
 // Tier 2 Style and Effects API implementations
@@ -2618,7 +2676,10 @@ ApiResult ExtendedControllerAPI::addSceneAudio(const AddSceneAudioReqBody& reqBo
     // Step 9: Recompute all offsets to ensure consistency
     dataStore->recomputeOffsets();
     
-    return ApiResult(true, "Scene audio added successfully", patches);
+    // Convert to JSON data equivalent for API compatibility
+    auto resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
+    
+    return ApiResult(true, "Scene audio added successfully", patches, resultData);
 }
 
 } // namespace pjson
