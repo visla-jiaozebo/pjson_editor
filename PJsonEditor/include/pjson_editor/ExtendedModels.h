@@ -252,7 +252,10 @@ struct ExtendedProjectAndScenesVo {
     std::string projectUuid;
     std::string ownerUuid;
     StatusEnum status{StatusEnum::ACTIVE};
-    
+
+    public:
+        ExtendedProjectAndScenesVo() = default;
+        ExtendedProjectAndScenesVo(const nlohmann::json &scenes);
     // Content
     std::vector<ExtendedProjectScene> scenes;
     std::vector<ExtendedTimeline> timelines; // Global timeline list for backward compatibility

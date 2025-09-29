@@ -34,7 +34,7 @@ target_include_directories(pjson_editor
 
 target_link_libraries(pjson_editor
     PUBLIC
-        $<BUILD_INTERFACE:nlohmann_json::nlohmann_json>
+        nlohmann_json::nlohmann_json
 )
 
 # Set up the main target as an alias for easier CMake usage
@@ -98,6 +98,7 @@ target_link_libraries(test_all_operations
 # Doctest based tests
 add_executable(test_addscene_doctest
     tests/test_addscene_doctest.cpp
+    tests/impl/server_login.cpp
 )
 
 target_link_libraries(test_addscene_doctest
@@ -122,10 +123,4 @@ install(TARGETS pjson_editor
 install(DIRECTORY include/pjson_editor
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
     FILES_MATCHING PATTERN "*.h"
-)
-
-install(EXPORT PJsonEditorTargets
-    FILE PJsonEditorTargets.cmake
-    NAMESPACE PJsonEditor::
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/PJsonEditor
 )

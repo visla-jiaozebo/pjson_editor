@@ -13,6 +13,349 @@ std::string genUuid() {
     return "uuid-" + std::to_string(++counter);
 }
 
+pjson::ExtendedProjectAndScenesVo::ExtendedProjectAndScenesVo(const nlohmann::json &scene_list_resp) {
+    // /v3/project/{projectUuid}/scene/list response parsing
+    // initialize from JSON response
+    if (scene_list_resp.contains("data")) {
+        const auto& data = scene_list_resp["data"];
+        
+        // Extract basic project information
+        if (data.contains("projectUuid")) {
+            projectUuid = data["projectUuid"].get<std::string>();
+            project.uuid = projectUuid;
+        }
+        
+        if (data.contains("ownerUuid")) {
+            ownerUuid = data["ownerUuid"].get<std::string>();
+        }
+        
+        // Parse status
+        if (data.contains("status")) {
+            std::string statusStr = data["status"].get<std::string>();
+            if (statusStr == "active") {
+                status = StatusEnum::ACTIVE;
+            } else if (statusStr == "deleted") {
+                status = StatusEnum::DELETED;
+            } else if (statusStr == "draft") {
+                status = StatusEnum::DRAFT;
+            }
+        }
+        
+        // Parse scenes array
+        if (data.contains("scenes") && data["scenes"].is_array()) {
+            scenes.clear();
+            for (const auto& sceneJson : data["scenes"]) {
+                ExtendedProjectScene scene;
+                
+                // Basic scene properties
+                if (sceneJson.contains("sceneUuid")) {
+                    scene.uuid = sceneJson["sceneUuid"].get<std::string>();
+                }
+                if (sceneJson.contains("projectUuid")) {
+                    scene.projectUuid = sceneJson["projectUuid"].get<std::string>();
+                }
+                if (sceneJson.contains("name")) {
+                    scene.name = sceneJson["name"].get<std::string>();
+                }
+                if (sceneJson.contains("duration")) {
+                    scene.duration = sceneJson["duration"].get<int>();
+                }
+                if (sceneJson.contains("timeOffsetInProject")) {
+                    scene.timeOffsetInProject = sceneJson["timeOffsetInProject"].get<int>();
+                }
+                if (sceneJson.contains("pauseTime")) {
+                    scene.pauseTime = sceneJson["pauseTime"].get<int>();
+                }
+                if (sceneJson.contains("audioFlag")) {
+                    scene.audioFlag = sceneJson["audioFlag"].get<int>();
+                }
+                
+                // Parse scene type
+                if (sceneJson.contains("sceneType")) {
+                    std::string sceneTypeStr = sceneJson["sceneType"].get<std::string>();
+                    if (sceneTypeStr == "intro") {
+                        scene.sceneType = SceneTypeEnum::INTRO;
+                    } else if (sceneTypeStr == "outro") {
+                        scene.sceneType = SceneTypeEnum::OUTRO;
+                    } else if (sceneTypeStr == "blankScene") {
+                        scene.sceneType = SceneTypeEnum::BLANK_SCENE;
+                    } else {
+                        scene.sceneType = SceneTypeEnum::DEFAULT;
+                    }
+                }
+                
+                // Parse aRolls (main content timelines)
+                if (sceneJson.contains("arolls") && sceneJson["arolls"].is_array()) {
+                    scene.aRolls.clear();
+                    for (const auto& timelineJson : sceneJson["arolls"]) {
+                        ExtendedTimeline timeline;
+                        if (timelineJson.contains("timelineUuid")) {
+                            timeline.uuid = timelineJson["timelineUuid"].get<std::string>();
+                        }
+                        if (timelineJson.contains("sceneUuid")) {
+                            timeline.sceneUuid = timelineJson["sceneUuid"].get<std::string>();
+                        }
+                        if (timelineJson.contains("assetUuid")) {
+                            timeline.assetUuid = timelineJson["assetUuid"].get<std::string>();
+                        }
+                        if (timelineJson.contains("timeOffsetInProject")) {
+                            timeline.timeOffsetInProject = timelineJson["timeOffsetInProject"].get<int>();
+                        }
+                        if (timelineJson.contains("startTime")) {
+                            timeline.startTime = timelineJson["startTime"].get<int>();
+                        }
+                        if (timelineJson.contains("endTime")) {
+                            timeline.endTime = timelineJson["endTime"].get<int>();
+                        }
+                        if (timelineJson.contains("timelineDuration")) {
+                            timeline.duration = timelineJson["timelineDuration"].get<int>();
+                        }
+                        if (timelineJson.contains("volume")) {
+                            timeline.volume = timelineJson["volume"].get<double>();
+                        }
+                        if (timelineJson.contains("category")) {
+                            // Parse category enum - would need proper mapping
+                            timeline.category = ProjectTimelineCategoryEnum::MAIN_STORY;
+                        }
+                        
+                        scene.aRolls.push_back(timeline);
+                        timelines.push_back(timeline); // Also add to global timeline list
+                    }
+                }
+                
+                // Parse bRolls (footage/broll timelines)
+                if (sceneJson.contains("brolls") && sceneJson["brolls"].is_array()) {
+                    scene.bRolls.clear();
+                    for (const auto& timelineJson : sceneJson["brolls"]) {
+                        ExtendedTimeline timeline;
+                        if (timelineJson.contains("timelineUuid")) {
+                            timeline.uuid = timelineJson["timelineUuid"].get<std::string>();
+                        }
+                        if (timelineJson.contains("sceneUuid")) {
+                            timeline.sceneUuid = timelineJson["sceneUuid"].get<std::string>();
+                        }
+                        if (timelineJson.contains("assetUuid")) {
+                            timeline.assetUuid = timelineJson["assetUuid"].get<std::string>();
+                        }
+                        if (timelineJson.contains("timeOffsetInProject")) {
+                            timeline.timeOffsetInProject = timelineJson["timeOffsetInProject"].get<int>();
+                        }
+                        if (timelineJson.contains("startTime")) {
+                            timeline.startTime = timelineJson["startTime"].get<int>();
+                        }
+                        if (timelineJson.contains("endTime")) {
+                            timeline.endTime = timelineJson["endTime"].get<int>();
+                        }
+                        if (timelineJson.contains("timelineDuration")) {
+                            timeline.duration = timelineJson["timelineDuration"].get<int>();
+                        }
+                        if (timelineJson.contains("volume")) {
+                            timeline.volume = timelineJson["volume"].get<double>();
+                        }
+                        timeline.category = ProjectTimelineCategoryEnum::FOOTAGE;
+                        
+                        scene.bRolls.push_back(timeline);
+                        timelines.push_back(timeline);
+                    }
+                }
+                
+                // Parse voiceOvers
+                if (sceneJson.contains("voiceOvers") && sceneJson["voiceOvers"].is_array()) {
+                    scene.voiceOvers.clear();
+                    for (const auto& voiceJson : sceneJson["voiceOvers"]) {
+                        VoiceOver voiceOver;
+                        if (voiceJson.contains("voiceUuid")) {
+                            voiceOver.uuid = voiceJson["voiceUuid"].get<std::string>();
+                        }
+                        if (voiceJson.contains("sceneUuid")) {
+                            voiceOver.sceneUuid = voiceJson["sceneUuid"].get<std::string>();
+                        }
+                        if (voiceJson.contains("projectUuid")) {
+                            voiceOver.projectUuid = voiceJson["projectUuid"].get<std::string>();
+                        }
+                        if (voiceJson.contains("assetUuid")) {
+                            voiceOver.assetUuid = voiceJson["assetUuid"].get<std::string>();
+                        }
+                        if (voiceJson.contains("timeOffsetInProject")) {
+                            voiceOver.timeOffsetInProject = voiceJson["timeOffsetInProject"].get<int>();
+                        }
+                        if (voiceJson.contains("startTime")) {
+                            voiceOver.startTime = voiceJson["startTime"].get<int>();
+                        }
+                        if (voiceJson.contains("endTime")) {
+                            voiceOver.endTime = voiceJson["endTime"].get<int>();
+                        }
+                        if (voiceJson.contains("timelineDuration")) {
+                            voiceOver.duration = voiceJson["timelineDuration"].get<int>();
+                        }
+                        if (voiceJson.contains("volume")) {
+                            voiceOver.volume = voiceJson["volume"].get<double>();
+                        }
+                        voiceOver.category = ProjectTimelineCategoryEnum::VOICE_OVER;
+                        
+                        scene.voiceOvers.push_back(voiceOver);
+                    }
+                }
+                
+                // Parse transcript
+                if (sceneJson.contains("transcript")) {
+                    const auto& transcriptJson = sceneJson["transcript"];
+                    SceneTranscript transcript;
+                    
+                    if (transcriptJson.contains("items") && transcriptJson["items"].is_array()) {
+                        for (const auto& itemJson : transcriptJson["items"]) {
+                            TranscriptItem item;
+                            if (itemJson.contains("text")) {
+                                item.text = itemJson["text"].get<std::string>();
+                            }
+                            if (itemJson.contains("startMs")) {
+                                item.startMs = itemJson["startMs"].get<int>();
+                            }
+                            if (itemJson.contains("endMs")) {
+                                item.endMs = itemJson["endMs"].get<int>();
+                            }
+                            transcript.items.push_back(item);
+                        }
+                        
+                        // Build full text from items
+                        std::string fullText;
+                        for (const auto& item : transcript.items) {
+                            if (!fullText.empty()) fullText += " ";
+                            fullText += item.text;
+                        }
+                        transcript.text = fullText;
+                    }
+                    
+                    if (sceneJson.contains("transcriptModified")) {
+                        transcript.modified = sceneJson["transcriptModified"].get<bool>();
+                    }
+                    
+                    scene.transcript = transcript;
+                }
+                
+                // Parse transitions
+                if (sceneJson.contains("transitions") && sceneJson["transitions"].is_array()) {
+                    scene.transitions.clear();
+                    for (const auto& transitionJson : sceneJson["transitions"]) {
+                        SceneTransition transition;
+                        if (transitionJson.contains("type")) {
+                            transition.type = transitionJson["type"].get<std::string>();
+                        }
+                        if (transitionJson.contains("duration")) {
+                            transition.duration = transitionJson["duration"].get<int>();
+                        }
+                        scene.transitions.push_back(transition);
+                    }
+                }
+                
+                scenes.push_back(scene);
+            }
+        }
+        
+        // Parse assets map
+        if (data.contains("assets") && data["assets"].is_object()) {
+            assets.clear();
+            for (const auto& [assetId, assetJson] : data["assets"].items()) {
+                ProjectSceneAsset asset;
+                if (assetJson.contains("assetUuid")) {
+                    asset.uuid = assetJson["assetUuid"].get<std::string>();
+                    asset.assetId = assetJson["assetUuid"].get<std::string>();
+                }
+                if (assetJson.contains("assetLink")) {
+                    asset.assetLink = assetJson["assetLink"].get<std::string>();
+                }
+                if (assetJson.contains("assetType")) {
+                    asset.assetType = assetJson["assetType"].get<std::string>();
+                }
+                if (assetJson.contains("duration")) {
+                    asset.duration = assetJson["duration"].get<int>();
+                }
+                if (assetJson.contains("width")) {
+                    asset.width = assetJson["width"].get<int>();
+                }
+                if (assetJson.contains("height")) {
+                    asset.height = assetJson["height"].get<int>();
+                }
+                if (assetJson.contains("audioLink")) {
+                    asset.audioLink = assetJson["audioLink"].get<std::string>();
+                }
+                
+                assets[assetId] = asset;
+            }
+        }
+        
+        // Parse BGMs
+        if (data.contains("bgms") && data["bgms"].is_array()) {
+            bgms.clear();
+            for (const auto& bgmJson : data["bgms"]) {
+                ProjectBgm bgm;
+                if (bgmJson.contains("assetUuid")) {
+                    bgm.assetUuid = bgmJson["assetUuid"].get<std::string>();
+                }
+                if (bgmJson.contains("assetLink")) {
+                    bgm.assetLink = bgmJson["assetLink"].get<std::string>();
+                }
+                if (bgmJson.contains("timelineUuid")) {
+                    bgm.uuid = bgmJson["timelineUuid"].get<std::string>();
+                }
+                if (bgmJson.contains("duration")) {
+                    bgm.duration = bgmJson["duration"].get<int>();
+                }
+                if (bgmJson.contains("volume")) {
+                    bgm.volume = bgmJson["volume"].get<double>();
+                }
+                if (bgmJson.contains("adjustedBgmLink")) {
+                    bgm.adjustedBgmLink = bgmJson["adjustedBgmLink"].get<std::string>();
+                }
+                
+                bgms.push_back(bgm);
+            }
+        }
+        
+        // Parse synthetic voices
+        if (data.contains("syntheticVoices") && data["syntheticVoices"].is_object()) {
+            syntheticVoices.clear();
+            for (const auto& [voiceId, voiceJson] : data["syntheticVoices"].items()) {
+                SyntheticVoiceMetadata voice;
+                if (voiceJson.contains("uuid")) {
+                    voice.voiceId = voiceJson["uuid"].get<std::string>();
+                }
+                if (voiceJson.contains("voiceName")) {
+                    voice.voiceName = voiceJson["voiceName"].get<std::string>();
+                }
+                if (voiceJson.contains("locale")) {
+                    voice.language = voiceJson["locale"].get<std::string>();
+                }
+                if (voiceJson.contains("gender")) {
+                    voice.gender = voiceJson["gender"].get<std::string>();
+                }
+                // Store additional parameters as JSON
+                nlohmann::json additionalParams;
+                if (voiceJson.contains("voiceSpeakerName")) {
+                    additionalParams["voiceSpeakerName"] = voiceJson["voiceSpeakerName"];
+                }
+                if (voiceJson.contains("duration")) {
+                    additionalParams["duration"] = voiceJson["duration"];
+                }
+                if (!additionalParams.empty()) {
+                    voice.additionalParams = additionalParams;
+                }
+                
+                syntheticVoices[voiceId] = voice;
+            }
+        }
+        
+        // Parse style information
+        if (data.contains("style")) {
+            style = data["style"];
+        }
+        
+        if (data.contains("text")) {
+            text = data["text"];
+        }
+    }
+}
+
 pjson::ExtendedProjectAndScenesVo EMPTY_PROJECT;
 
 // /v3/project/{projectUuid}/scene/add 
