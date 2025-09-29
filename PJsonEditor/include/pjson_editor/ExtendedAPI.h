@@ -18,9 +18,10 @@ struct ApiResult {
     bool success{false};
     std::string message;
     nlohmann::json patch;
+    nlohmann::json data;  // New member to hold controller return structure equivalent
     ApiResult() = default;
-    ApiResult(bool s, const std::string& m, const nlohmann::json& p = nlohmann::json::array())
-        : success(s), message(m), patch(p) {}
+    ApiResult(bool s, const std::string& m, const nlohmann::json& p = nlohmann::json::array(), const nlohmann::json& d = nlohmann::json::object())
+        : success(s), message(m), patch(p), data(d) {}
 };
 
 struct BackendParityOptions {
@@ -33,6 +34,13 @@ class ExtendedControllerAPI {
 private:
     ExtendedDataStore* dataStore{nullptr};
     BackendParityOptions parityOptions{};
+    
+    // Helper methods for VO conversion
+    nlohmann::json convertSceneToProjectSceneVo(const ExtendedProjectScene& scene) const;
+    nlohmann::json convertProjectToProjectAndSceneVo(const std::string& sceneUuid) const;
+    nlohmann::json convertProjectToProjectAndScenesVo() const;
+    nlohmann::json convertAssetsMap(const std::unordered_map<std::string, ProjectSceneAsset>& assets) const;
+    
 public:
     void setDataStore(ExtendedDataStore* ds) { dataStore = ds; }
     void setParityOptions(const BackendParityOptions& o) { parityOptions = o; }

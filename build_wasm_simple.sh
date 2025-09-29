@@ -3,7 +3,7 @@
 # Simplified WebAssembly build script
 echo "🚀 Building PJsonEditor WebAssembly with Bindings"
 
-PROJECT_ROOT="/Users/zzchu/Desktop/workspace/visla-api/PJsonEditor"
+PROJECT_ROOT="/Users/zzchu/Desktop/workspace/pjson_editor"
 cd "$PROJECT_ROOT"
 
 # Clean build directory

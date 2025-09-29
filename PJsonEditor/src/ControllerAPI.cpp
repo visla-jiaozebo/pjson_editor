@@ -14,7 +14,8 @@ std::string genUuid() {
 }
 
 pjson::ExtendedProjectAndScenesVo EMPTY_PROJECT;
-// Stub implementations
+
+// /v3/project/{projectUuid}/scene/add 
 ApiResult ExtendedControllerAPI::addScene(const ExtendedProjectSceneAddReqBody& reqBody) {
     if (!dataStore) {
         return ApiResult(false, "DataStore not initialized");
@@ -142,10 +143,13 @@ ApiResult ExtendedControllerAPI::addScene(const ExtendedProjectSceneAddReqBody& 
         {"value", sceneValue}
     });
     
-    // Step 8: Recompute all offsets to ensure consistency
+    // Step 9: Recompute all offsets to ensure consistency
     dataStore->recomputeOffsets();
     
-    return ApiResult(true, "Scene added successfully with complete offset recalculation", patches);
+    // Step 10: Create ProjectAndSceneVo equivalent data for API compatibility
+    nlohmann::json resultData = convertProjectToProjectAndSceneVo(newScene.uuid);
+    
+    return ApiResult(true, "Scene added successfully with complete offset recalculation", patches, resultData);
 }
 
 ApiResult ExtendedControllerAPI::renameScene(const ExtendedProjectSceneRenameReqBody& reqBody) {
@@ -2615,6 +2619,250 @@ ApiResult ExtendedControllerAPI::addSceneAudio(const AddSceneAudioReqBody& reqBo
     dataStore->recomputeOffsets();
     
     return ApiResult(true, "Scene audio added successfully", patches);
+}
+
+} // namespace pjson
+
+// VO conversion method implementations
+namespace pjson {
+
+nlohmann::json ExtendedControllerAPI::convertSceneToProjectSceneVo(const ExtendedProjectScene& scene) const {
+    nlohmann::json sceneVo;
+    
+    sceneVo["sceneUuid"] = scene.uuid;
+    sceneVo["projectUuid"] = scene.projectUuid;
+    sceneVo["name"] = scene.name;
+    sceneVo["sceneType"] = static_cast<int>(scene.sceneType);
+    sceneVo["timeOffsetInProject"] = scene.timeOffsetInProject;
+    sceneVo["duration"] = scene.duration;
+    sceneVo["audioFlag"] = scene.audioFlag;
+    
+    // Convert transcript
+    if (scene.transcript.has_value()) {
+        nlohmann::json transcript;
+        transcript["text"] = scene.transcript->text;
+        transcript["modified"] = scene.transcript->modified;
+        transcript["duration"] = scene.transcript->duration;
+        
+        // Convert transcript items
+        nlohmann::json items = nlohmann::json::array();
+        for (const auto& item : scene.transcript->items) {
+            nlohmann::json itemJson;
+            itemJson["startMs"] = item.startMs;
+            itemJson["endMs"] = item.endMs;
+            itemJson["text"] = item.text;
+            if (item.speaker.has_value()) {
+                itemJson["speaker"] = item.speaker.value();
+            }
+            items.push_back(itemJson);
+        }
+        transcript["items"] = items;
+        
+        // Convert modification status
+        nlohmann::json modStatus;
+        modStatus["changed"] = scene.transcript->modificationStatus.changed;
+        modStatus["voiceRedo"] = scene.transcript->modificationStatus.voiceRedo;
+        modStatus["recommendFootageRedo"] = scene.transcript->modificationStatus.recommendFootageRedo;
+        transcript["transcriptModifiedStatus"] = modStatus;
+        
+        sceneVo["transcript"] = transcript;
+    }
+    
+    // Convert timelines (aRolls, bRolls)
+    nlohmann::json aRolls = nlohmann::json::array();
+    for (const auto& timeline : scene.aRolls) {
+        nlohmann::json timelineJson;
+        timelineJson["uuid"] = timeline.uuid;
+        timelineJson["assetUuid"] = timeline.assetUuid;
+        timelineJson["category"] = static_cast<int>(timeline.category);
+        timelineJson["timeOffsetInScene"] = timeline.timeOffsetInScene;
+        timelineJson["timeOffsetInProject"] = timeline.timeOffsetInProject;
+        timelineJson["duration"] = timeline.duration;
+        timelineJson["startTime"] = timeline.startTime;
+        timelineJson["endTime"] = timeline.endTime;
+        timelineJson["volume"] = timeline.volume;
+        timelineJson["mute"] = timeline.mute;
+        timelineJson["speed"] = timeline.speed;
+        aRolls.push_back(timelineJson);
+    }
+    sceneVo["aRolls"] = aRolls;
+    
+    nlohmann::json bRolls = nlohmann::json::array();
+    for (const auto& timeline : scene.bRolls) {
+        nlohmann::json timelineJson;
+        timelineJson["uuid"] = timeline.uuid;
+        timelineJson["assetUuid"] = timeline.assetUuid;
+        timelineJson["category"] = static_cast<int>(timeline.category);
+        timelineJson["timeOffsetInScene"] = timeline.timeOffsetInScene;
+        timelineJson["timeOffsetInProject"] = timeline.timeOffsetInProject;
+        timelineJson["duration"] = timeline.duration;
+        timelineJson["startTime"] = timeline.startTime;
+        timelineJson["endTime"] = timeline.endTime;
+        timelineJson["volume"] = timeline.volume;
+        timelineJson["mute"] = timeline.mute;
+        timelineJson["speed"] = timeline.speed;
+        bRolls.push_back(timelineJson);
+    }
+    sceneVo["bRolls"] = bRolls;
+    
+    // Convert voice overs
+    nlohmann::json voiceOvers = nlohmann::json::array();
+    for (const auto& vo : scene.voiceOvers) {
+        nlohmann::json voJson;
+        voJson["uuid"] = vo.uuid;
+        voJson["assetUuid"] = vo.assetUuid;
+        voJson["category"] = static_cast<int>(vo.category);
+        voJson["timeOffsetInProject"] = vo.timeOffsetInProject;
+        voJson["duration"] = vo.duration;
+        voJson["startTime"] = vo.startTime;
+        voJson["endTime"] = vo.endTime;
+        voJson["volume"] = vo.volume;
+        voJson["audioLink"] = vo.audioLink;
+        voJson["voiceUuid"] = vo.voiceUuid;
+        voJson["audioOnly"] = vo.audioOnly;
+        voiceOvers.push_back(voJson);
+    }
+    sceneVo["voiceOvers"] = voiceOvers;
+    
+    // Add pause time
+    if (scene.pauseTime.has_value()) {
+        sceneVo["pauseTime"] = scene.pauseTime.value();
+    } else {
+        sceneVo["pauseTime"] = 0;
+    }
+    
+    return sceneVo;
+}
+
+nlohmann::json ExtendedControllerAPI::convertAssetsMap(const std::unordered_map<std::string, ProjectSceneAsset>& assets) const {
+    nlohmann::json assetsJson;
+    
+    for (const auto& [assetId, asset] : assets) {
+        nlohmann::json assetJson;
+        assetJson["assetId"] = asset.assetId;
+        assetJson["uuid"] = asset.uuid;
+        assetJson["assetLink"] = asset.assetLink;
+        assetJson["assetType"] = asset.assetType;
+        assetJson["duration"] = asset.duration;
+        assetJson["newMedia"] = asset.newMedia;
+        
+        if (asset.audioLink.has_value()) {
+            assetJson["audioLink"] = asset.audioLink.value();
+        }
+        if (asset.coverLink.has_value()) {
+            assetJson["coverLink"] = asset.coverLink.value();
+        }
+        if (asset.mediaId.has_value()) {
+            assetJson["mediaId"] = asset.mediaId.value();
+        }
+        if (asset.voiceId.has_value()) {
+            assetJson["voiceId"] = asset.voiceId.value();
+        }
+        if (asset.width.has_value()) {
+            assetJson["width"] = asset.width.value();
+        }
+        if (asset.height.has_value()) {
+            assetJson["height"] = asset.height.value();
+        }
+        if (asset.format.has_value()) {
+            assetJson["format"] = asset.format.value();
+        }
+        
+        assetsJson[assetId] = assetJson;
+    }
+    
+    return assetsJson;
+}
+
+nlohmann::json ExtendedControllerAPI::convertProjectToProjectAndSceneVo(const std::string& sceneUuid) const {
+    if (!dataStore) {
+        return nlohmann::json::object();
+    }
+    
+    const auto& project = dataStore->getProject();
+    
+    // Find the specific scene
+    const ExtendedProjectScene* targetScene = nullptr;
+    for (const auto& scene : project.scenes) {
+        if (scene.uuid == sceneUuid) {
+            targetScene = &scene;
+            break;
+        }
+    }
+    
+    if (!targetScene) {
+        return nlohmann::json::object();
+    }
+    
+    nlohmann::json result;
+    
+    // Set project info (matching ProjectAndSceneVo structure)
+    result["projectUuid"] = project.projectUuid;
+    result["sceneUuid"] = sceneUuid;
+    
+    // Convert the scene
+    result["scene"] = convertSceneToProjectSceneVo(*targetScene);
+    
+    // Convert assets
+    result["assets"] = convertAssetsMap(project.assets);
+    
+    return result;
+}
+
+nlohmann::json ExtendedControllerAPI::convertProjectToProjectAndScenesVo() const {
+    if (!dataStore) {
+        return nlohmann::json::object();
+    }
+    
+    const auto& project = dataStore->getProject();
+    nlohmann::json result;
+    
+    // Project basic info
+    result["projectUuid"] = project.projectUuid;
+    result["ownerUuid"] = project.ownerUuid;
+    result["status"] = static_cast<int>(project.status);
+    
+    // Convert all scenes
+    nlohmann::json scenes = nlohmann::json::array();
+    for (const auto& scene : project.scenes) {
+        scenes.push_back(convertSceneToProjectSceneVo(scene));
+    }
+    result["scenes"] = scenes;
+    
+    // Convert assets
+    result["assets"] = convertAssetsMap(project.assets);
+    
+    // Convert BGMs
+    nlohmann::json bgms = nlohmann::json::array();
+    for (const auto& bgm : project.bgms) {
+        nlohmann::json bgmJson;
+        bgmJson["uuid"] = bgm.uuid;
+        bgmJson["assetUuid"] = bgm.assetUuid;
+        bgmJson["assetLink"] = bgm.assetLink;
+        bgmJson["startTime"] = bgm.startTime;
+        bgmJson["duration"] = bgm.duration;
+        bgmJson["volume"] = bgm.volume;
+        bgmJson["loop"] = bgm.loop;
+        if (bgm.adjustedBgmLink.has_value()) {
+            bgmJson["adjustedBgmLink"] = bgm.adjustedBgmLink.value();
+        }
+        bgms.push_back(bgmJson);
+    }
+    result["bgms"] = bgms;
+    
+    // Add synthetic voices
+    nlohmann::json syntheticVoices;
+    for (const auto& [voiceId, voice] : project.syntheticVoices) {
+        nlohmann::json voiceJson;
+        voiceJson["voiceId"] = voice.voiceId;
+        voiceJson["voiceName"] = voice.voiceName;
+        voiceJson["language"] = voice.language;
+        voiceJson["gender"] = voice.gender;
+        syntheticVoices[voiceId] = voiceJson;
+    }
+    result["syntheticVoices"] = syntheticVoices;
+    
+    return result;
 }
 
 } // namespace pjson
