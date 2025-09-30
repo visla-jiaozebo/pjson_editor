@@ -361,7 +361,7 @@ pjson::ExtendedProjectAndScenesVo EMPTY_PROJECT;
 // /v3/project/{projectUuid}/scene/add 
 ApiResult ExtendedControllerAPI::addScene(const ExtendedProjectSceneAddReqBody& reqBody) {
     if (!dataStore) {
-        return ApiResult(false, "DataStore not initialized");
+        return ApiResult::error(ApiMessage::DATASTORE_NOT_INITIALIZED);
     }
     
     nlohmann::json patches = nlohmann::json::array();
@@ -375,7 +375,7 @@ ApiResult ExtendedControllerAPI::addScene(const ExtendedProjectSceneAddReqBody& 
     // Check intro position restrictions (following Java backend logic)
     // Cannot add at position 0 if first scene is intro
     if (addPosition == 0 && !scenes.empty() && scenes[0].sceneType == SceneTypeEnum::INTRO) {
-        return ApiResult(false, "Cannot add scene before intro scene");
+        return ApiResult::error(ApiMessage::ACTION_DENIED);
     }
     
     // Clamp position to valid range
@@ -485,23 +485,23 @@ ApiResult ExtendedControllerAPI::addScene(const ExtendedProjectSceneAddReqBody& 
     // Step 10: Create ProjectAndSceneVo equivalent data for API compatibility
     nlohmann::json resultData = convertProjectToProjectAndSceneVo(newScene.uuid);
     
-    return ApiResult(true, "Scene added successfully with complete offset recalculation", patches, resultData);
+    return ApiResult::success(patches, resultData);
 }
 
 ApiResult ExtendedControllerAPI::renameScene(const ExtendedProjectSceneRenameReqBody& reqBody) {
     if (!dataStore) {
-        return ApiResult(false, "DataStore not initialized");
+        return ApiResult::error(ApiMessage::DATASTORE_NOT_INITIALIZED);
     }
     
     // Step 1: Find and validate the scene (Java backend logic)
     ExtendedProjectScene* scene = dataStore->findScene(reqBody.sceneUuid);
     if (!scene) {
-        return ApiResult(false, "Scene not found: " + reqBody.sceneUuid);
+        return ApiResult::error(ApiMessage::PROJECT_VIDEO_SCENE_NOT_FOUND);
     }
     
     // Step 2: Filter intro/outro scenes (Java backend: filterIntroOutroScene)
     if (scene->sceneType == SceneTypeEnum::INTRO || scene->sceneType == SceneTypeEnum::OUTRO) {
-        return ApiResult(false, "Cannot rename intro/outro scenes");
+        return ApiResult::error(ApiMessage::ACTION_DENIED);
     }
     
     // Step 3: Update the scene name
@@ -518,12 +518,12 @@ ApiResult ExtendedControllerAPI::renameScene(const ExtendedProjectSceneRenameReq
     // Step 5: Create ProjectAndSceneVo equivalent data for API compatibility
     nlohmann::json resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
     
-    return ApiResult(true, "Scene renamed successfully", patch, resultData);
+    return ApiResult::success(patch, resultData);
 }
 
 ApiResult ExtendedControllerAPI::moveScene(const ExtendedProjectSceneMoveReqBody& reqBody) {
     if (!dataStore) {
-        return ApiResult(false, "DataStore not initialized");
+        return ApiResult::error(ApiMessage::DATASTORE_NOT_INITIALIZED);
     }
     
     nlohmann::json patches = nlohmann::json::array();
@@ -531,7 +531,7 @@ ApiResult ExtendedControllerAPI::moveScene(const ExtendedProjectSceneMoveReqBody
     
     // Step 1: Validate project has scenes
     if (scenes.empty()) {
-        return ApiResult(false, "Project has no scenes");
+        return ApiResult::error(ApiMessage::PROJECT_VIDEO_SCENES_NOT_FOUND);
     }
     
     // Step 2: Find current scene and validate
@@ -541,14 +541,14 @@ ApiResult ExtendedControllerAPI::moveScene(const ExtendedProjectSceneMoveReqBody
         });
     
     if (currSceneIt == scenes.end()) {
-        return ApiResult(false, "Scene not found: " + reqBody.uuid);
+        return ApiResult::error(ApiMessage::PROJECT_VIDEO_SCENE_NOT_FOUND);
     }
     
     ExtendedProjectScene& currScene = *currSceneIt;
     
     // Step 3: Validate scene type restrictions (cannot move intro/outro)
     if (currScene.sceneType == SceneTypeEnum::INTRO || currScene.sceneType == SceneTypeEnum::OUTRO) {
-        return ApiResult(false, "Cannot move intro or outro scenes");
+        return ApiResult::error(ApiMessage::ACTION_DENIED);
     }
     
     // Step 4: Determine insertion position and time offset
@@ -557,7 +557,7 @@ ApiResult ExtendedControllerAPI::moveScene(const ExtendedProjectSceneMoveReqBody
     if (!reqBody.afterSceneUuid.has_value() || reqBody.afterSceneUuid.value().empty()) {
         // Move to beginning (after intro if exists)
         if (!scenes.empty() && scenes[0].sceneType == SceneTypeEnum::INTRO) {
-            return ApiResult(false, "Cannot move scene before intro");
+            return ApiResult::error(ApiMessage::ACTION_DENIED);
         }
         insertTimeOffset = 0;
     } else {
@@ -568,19 +568,19 @@ ApiResult ExtendedControllerAPI::moveScene(const ExtendedProjectSceneMoveReqBody
             });
         
         if (afterSceneIt == scenes.end()) {
-            return ApiResult(false, "After scene not found: " + reqBody.afterSceneUuid.value());
+            return ApiResult::error(ApiMessage::PROJECT_VIDEO_SCENE_NOT_FOUND);
         }
         
         ExtendedProjectScene& afterScene = *afterSceneIt;
         
         // Check outro restrictions
         if (currScene.sceneType == SceneTypeEnum::OUTRO) {
-            return ApiResult(false, "Cannot move outro scene");
+            return ApiResult::error(ApiMessage::ACTION_DENIED);
         }
         
         // Calculate insertion time offset
         if (afterScene.timeOffsetInProject == currScene.timeOffsetInProject) {
-            return ApiResult(true, "Scene already at target position", patches);
+            return ApiResult::success(patches);
         } else if (afterScene.timeOffsetInProject < currScene.timeOffsetInProject) {
             // Moving backward
             insertTimeOffset = afterScene.timeOffsetInProject + afterScene.duration;
@@ -592,7 +592,7 @@ ApiResult ExtendedControllerAPI::moveScene(const ExtendedProjectSceneMoveReqBody
     
     // Step 5: Check if position unchanged
     if (insertTimeOffset == currScene.timeOffsetInProject) {
-        return ApiResult(true, "Scene already at target position", patches);
+        return ApiResult::success(patches);
     }
     
     // Step 6: Calculate affected scenes and update their time offsets
@@ -682,12 +682,12 @@ ApiResult ExtendedControllerAPI::moveScene(const ExtendedProjectSceneMoveReqBody
     // Step 11: Create Integer return data for API compatibility (Java API returns Integer)
     nlohmann::json resultData = static_cast<int>(scenes.size()); // Return scene count as Integer
     
-    return ApiResult(true, "Scene moved successfully with complete offset recalculation", patches, resultData);
+    return ApiResult::success(patches, resultData);
 }
 
 ApiResult ExtendedControllerAPI::setSceneTime(const ExtendedProjectSceneSetTimeReqBody& reqBody) {
     if (!dataStore) {
-        return ApiResult(false, "DataStore not initialized");
+        return ApiResult::error(ApiMessage::DATASTORE_NOT_INITIALIZED);
     }
     
     nlohmann::json patches = nlohmann::json::array();
@@ -700,7 +700,7 @@ ApiResult ExtendedControllerAPI::setSceneTime(const ExtendedProjectSceneSetTimeR
         });
     
     if (sceneIt == scenes.end()) {
-        return ApiResult(false, "Scene not found: " + reqBody.sceneUuid);
+        return ApiResult::error(ApiMessage::PROJECT_VIDEO_SCENE_NOT_FOUND);
     }
     
     ExtendedProjectScene& targetScene = *sceneIt;
@@ -710,7 +710,7 @@ ApiResult ExtendedControllerAPI::setSceneTime(const ExtendedProjectSceneSetTimeR
     
     // Step 2: Validate duration and timeline constraints
     if (newDuration <= 0) {
-        return ApiResult(false, "Scene duration must be positive");
+        return ApiResult::error(ApiMessage::SCENE_CUT_DURATION_LIMITATION);
     }
     
     // Step 3: Check if scene has timelines that might be affected
@@ -729,7 +729,7 @@ ApiResult ExtendedControllerAPI::setSceneTime(const ExtendedProjectSceneSetTimeR
             {"value", targetScene.pauseTime.value()}
         });
         
-        return ApiResult(true, "Scene pause time updated to accommodate duration change", patches);
+        return ApiResult::success(patches);
     }
     
     // Step 4: Update scene duration and transcript if needed
@@ -806,7 +806,7 @@ ApiResult ExtendedControllerAPI::setSceneTime(const ExtendedProjectSceneSetTimeR
     // Step 10: Create ProjectAndSceneVo equivalent data for API compatibility
     nlohmann::json resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
     
-    return ApiResult(true, "Scene time updated successfully with timeline adjustments", patches, resultData);
+    return ApiResult::success(patches, resultData);
 }
 
 ApiResult ExtendedControllerAPI::cutScene(const ExtendedProjectSceneCutReqBody& reqBody) {
@@ -818,12 +818,12 @@ ApiResult ExtendedControllerAPI::cutScene(const ExtendedProjectSceneCutReqBody& 
         {"value", nlohmann::json::array()} // Cut timelines placeholder
     });
     
-    return ApiResult(true, "Scene cut successfully", patch);
+    return ApiResult::success(patch);
 }
 
 ApiResult ExtendedControllerAPI::splitScene(const ExtendedProjectSceneSplitReqBody& reqBody) {
     if (!dataStore) {
-        return ApiResult(false, "DataStore not initialized");
+        return ApiResult::error(ApiMessage::DATASTORE_NOT_INITIALIZED);
     }
     
     nlohmann::json patches = nlohmann::json::array();
@@ -831,23 +831,23 @@ ApiResult ExtendedControllerAPI::splitScene(const ExtendedProjectSceneSplitReqBo
     // Step 1: Find and validate the scene
     ExtendedProjectScene* originScene = dataStore->findScene(reqBody.sceneUuid);
     if (!originScene) {
-        return ApiResult(false, "Scene not found");
+        return ApiResult::error(ApiMessage::PROJECT_VIDEO_SCENE_NOT_FOUND);
     }
     
     // Validate scene duration (minimum 1000ms as per Java backend)
     if (originScene->duration <= 1000) {
-        return ApiResult(false, "Scene duration too short for splitting (minimum 1000ms)");
+        return ApiResult::error(ApiMessage::SCENE_CUT_DURATION_LIMITATION);
     }
     
     // Validate split time
     int splitTime = reqBody.splitTime;
     if (splitTime <= 0 || splitTime >= originScene->duration) {
-        return ApiResult(false, "Invalid split time - must be between 0 and scene duration");
+        return ApiResult::error(ApiMessage::ILLEGAL_PARAMS);
     }
     
     // Scene type validation - filter intro/outro scenes
     if (originScene->sceneType == SceneTypeEnum::INTRO || originScene->sceneType == SceneTypeEnum::OUTRO) {
-        return ApiResult(false, "Cannot split intro/outro scenes");
+        return ApiResult::error(ApiMessage::ACTION_DENIED);
     }
     
     // Step 2: Create two new scenes based on original scene
@@ -1083,12 +1083,12 @@ ApiResult ExtendedControllerAPI::splitScene(const ExtendedProjectSceneSplitReqBo
     // Step 8: Recompute offsets to ensure consistency
     dataStore->recomputeOffsets();
     
-    return ApiResult(true, "Scene split successfully with complete business logic parity", patches);
+    return ApiResult::success(patches);
 }
 
 ApiResult ExtendedControllerAPI::deleteScene(const ExtendedProjectSceneDeleteReqBody& reqBody) {
     if (!dataStore) {
-        return ApiResult(false, "DataStore not initialized");
+        return ApiResult::error(ApiMessage::DATASTORE_NOT_INITIALIZED);
     }
     
     nlohmann::json patches = nlohmann::json::array();
@@ -1101,12 +1101,12 @@ ApiResult ExtendedControllerAPI::deleteScene(const ExtendedProjectSceneDeleteReq
         });
     
     if (sceneIt == scenes.end()) {
-        return ApiResult(false, "Scene not found: " + reqBody.sceneUuid);
+        return ApiResult::error(ApiMessage::PROJECT_VIDEO_SCENE_NOT_FOUND);
     }
     
     // Step 2: Ensure at least one scene remains (following Java backend logic)
     if (scenes.size() < 2) {
-        return ApiResult(false, "Must have at least one scene remaining");
+        return ApiResult::error(ApiMessage::MUST_AT_LEAST_ONE_SCENE);
     }
     
     const ExtendedProjectScene& sceneToDelete = *sceneIt;
@@ -1212,18 +1212,18 @@ ApiResult ExtendedControllerAPI::deleteScene(const ExtendedProjectSceneDeleteReq
     // Step 11: Create Integer return data for API compatibility (Java API returns Integer - remaining scene count)
     nlohmann::json resultData = static_cast<int>(scenes.size());
     
-    return ApiResult(true, "Scene deleted successfully with complete offset recalculation", patches, resultData);
+    return ApiResult::success(patches, resultData);
 }
 
 ApiResult ExtendedControllerAPI::clearFootage(const ExtendedProjectSceneClearFootageReqBody& reqBody) {
     if (!dataStore) {
-        return ApiResult(false, "DataStore not initialized");
+        return ApiResult::error(ApiMessage::DATASTORE_NOT_INITIALIZED);
     }
     
     // Find target scene
     ExtendedProjectScene* scene = dataStore->findScene(reqBody.sceneUuid);
     if (!scene) {
-        return ApiResult(false, "Scene not found: " + reqBody.sceneUuid);
+        return ApiResult::error(ApiMessage::PROJECT_VIDEO_SCENE_NOT_FOUND);
     }
     
     // Clear footage from scene
@@ -1245,19 +1245,19 @@ ApiResult ExtendedControllerAPI::clearFootage(const ExtendedProjectSceneClearFoo
     // Create ProjectAndSceneVo equivalent data for API compatibility
     nlohmann::json resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
     
-    return ApiResult(true, "Footage cleared successfully", patch, resultData);
+    return ApiResult::success(patch, resultData);
 }
 
 // Additional API stubs
 ApiResult ExtendedControllerAPI::replaceFootage(const ProjectSceneReplaceFootageReqBody& reqBody) {
     if (!dataStore) {
-        return ApiResult(false, "DataStore not initialized");
+        return ApiResult::error(ApiMessage::DATASTORE_NOT_INITIALIZED);
     }
     
     // Find target scene
     ExtendedProjectScene* scene = dataStore->findScene(reqBody.sceneUuid);
     if (!scene) {
-        return ApiResult(false, "Scene not found");
+        return ApiResult::error(ApiMessage::PROJECT_VIDEO_SCENE_NOT_FOUND);
     }
     
     // If oldTimelineUuid is empty, treat as add new footage (like API behavior)
@@ -1327,7 +1327,7 @@ ApiResult ExtendedControllerAPI::replaceFootage(const ProjectSceneReplaceFootage
         // Create ProjectAndSceneVo equivalent data for API compatibility
         nlohmann::json resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
         
-        return ApiResult(true, "New footage added successfully", patches, resultData);
+        return ApiResult::success(patches, resultData);
     }
     
     // Original replace logic for non-empty timeline UUID
@@ -1382,24 +1382,24 @@ ApiResult ExtendedControllerAPI::replaceFootage(const ProjectSceneReplaceFootage
     }
     
     if (!timelineFound) {
-        return ApiResult(false, "Timeline not found in scene");
+        return ApiResult::error(ApiMessage::PROJECT_VIDEO_SCENE_NOT_FOUND);
     }
     
     // Create ProjectAndSceneVo equivalent data for API compatibility
     nlohmann::json resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
     
-    return ApiResult(true, "Footage replaced successfully", patches, resultData);
+    return ApiResult::success(patches, resultData);
 }
 
 ApiResult ExtendedControllerAPI::adjustFootage(const ProjectSceneAdjustFootageReqBody& reqBody) {
     if (!dataStore) {
-        return ApiResult(false, "DataStore not initialized");
+        return ApiResult::error(ApiMessage::DATASTORE_NOT_INITIALIZED);
     }
     
     // Find target scene
     ExtendedProjectScene* scene = dataStore->findScene(reqBody.sceneUuid);
     if (!scene) {
-        return ApiResult(false, "Scene not found");
+        return ApiResult::error(ApiMessage::PROJECT_VIDEO_SCENE_NOT_FOUND);
     }
     
     // Find the timeline to adjust
@@ -1424,7 +1424,7 @@ ApiResult ExtendedControllerAPI::adjustFootage(const ProjectSceneAdjustFootageRe
     }
     
     if (!targetTimeline) {
-        return ApiResult(false, "Timeline not found in scene");
+        return ApiResult::error(ApiMessage::PROJECT_VIDEO_SCENE_NOT_FOUND);
     }
     
     nlohmann::json patches = nlohmann::json::array();
@@ -1453,18 +1453,18 @@ ApiResult ExtendedControllerAPI::adjustFootage(const ProjectSceneAdjustFootageRe
     // Create ProjectAndSceneVo equivalent data for API compatibility
     nlohmann::json resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
     
-    return ApiResult(true, "Footage adjusted successfully", patches, resultData);
+    return ApiResult::success(patches, resultData);
 }
 
 ApiResult ExtendedControllerAPI::addVoiceOver(const AddVoiceOverReqBody& reqBody) {
     if (!dataStore) {
-        return ApiResult(false, "DataStore not initialized");
+        return ApiResult::error(ApiMessage::DATASTORE_NOT_INITIALIZED);
     }
     
     // Find target scene
     ExtendedProjectScene* scene = dataStore->findScene(reqBody.sceneUuid);
     if (!scene) {
-        return ApiResult(false, "Scene not found");
+        return ApiResult::error(ApiMessage::PROJECT_VIDEO_SCENE_NOT_FOUND);
     }
     
     // Create new voice over
@@ -1505,18 +1505,18 @@ ApiResult ExtendedControllerAPI::addVoiceOver(const AddVoiceOverReqBody& reqBody
     // Convert to JSON data equivalent for API compatibility
     auto resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
     
-    return ApiResult(true, "Voice over added successfully", patches, resultData);
+    return ApiResult::success(patches, resultData);
 }
 
 ApiResult ExtendedControllerAPI::setPauseTime(const ProjectSceneSetPauseTimeReqBody& reqBody) {
     if (!dataStore) {
-        return ApiResult(false, "DataStore not initialized");
+        return ApiResult::error(ApiMessage::DATASTORE_NOT_INITIALIZED);
     }
     
     // Find target scene
     ExtendedProjectScene* scene = dataStore->findScene(reqBody.sceneUuid);
     if (!scene) {
-        return ApiResult(false, "Scene not found");
+        return ApiResult::error(ApiMessage::PROJECT_VIDEO_SCENE_NOT_FOUND);
     }
     
     // Set pause time
@@ -1532,13 +1532,13 @@ ApiResult ExtendedControllerAPI::setPauseTime(const ProjectSceneSetPauseTimeReqB
         {"value", reqBody.pauseTime}
     });
     
-    return ApiResult(true, "Pause time set successfully", patches);
+    return ApiResult::success(patches);
 }
 
 // Set scene transition **/v3/project/{projectUuid}/scene/set-transition**
 ApiResult ExtendedControllerAPI::setSceneTransition(const ProjectSceneTransitionReqBody& reqBody) {
     if (!dataStore) {
-        return ApiResult(false, "DataStore not initialized");
+        return ApiResult::error(ApiMessage::DATASTORE_NOT_INITIALIZED);
     }
     
     nlohmann::json patches = nlohmann::json::array();
@@ -1581,7 +1581,7 @@ ApiResult ExtendedControllerAPI::setSceneTransition(const ProjectSceneTransition
         // Apply transition to specific scene
         ExtendedProjectScene* scene = dataStore->findScene(reqBody.sceneUuid);
         if (!scene) {
-            return ApiResult(false, "Scene not found");
+            return ApiResult::error(ApiMessage::PROJECT_VIDEO_SCENE_NOT_FOUND);
         }
         
         // Clear existing transitions
@@ -1612,24 +1612,24 @@ ApiResult ExtendedControllerAPI::setSceneTransition(const ProjectSceneTransition
         }
     }
     
-    return ApiResult(true, "Scene transition set successfully", patches);
+    return ApiResult::success(patches);
 }
 
 // Tier 1 high-priority API implementations
 ApiResult ExtendedControllerAPI::addFootage(const ProjectSceneFootageAddReqBody& reqBody) {
     if (!dataStore) {
-        return ApiResult(false, "DataStore not initialized");
+        return ApiResult::error(ApiMessage::DATASTORE_NOT_INITIALIZED);
     }
     
     // Find target scene
     ExtendedProjectScene* scene = dataStore->findScene(reqBody.sceneUuid);
     if (!scene) {
-        return ApiResult(false, "Scene not found");
+        return ApiResult::error(ApiMessage::PROJECT_VIDEO_SCENE_NOT_FOUND);
     }
     
     // Filter intro/outro scenes (following Java backend logic)
     if (scene->sceneType == SceneTypeEnum::INTRO || scene->sceneType == SceneTypeEnum::OUTRO) {
-        return ApiResult(false, "Cannot add footage to intro/outro scenes");
+        return ApiResult::error(ApiMessage::ACTION_DENIED);
     }
     
     // Check if this footage overlaps with any existing footage (following Java backend logic)
@@ -1673,7 +1673,7 @@ ApiResult ExtendedControllerAPI::addFootage(const ProjectSceneFootageAddReqBody&
         int newEnd = newStart + newDuration;
         
         if (!(newEnd <= existingStart || newStart >= existingEnd)) {
-            return ApiResult(false, "Timeline overlaps with existing footage");
+            return ApiResult::error(ApiMessage::ACTION_DENIED);
         }
     }
     
@@ -1771,18 +1771,18 @@ ApiResult ExtendedControllerAPI::addFootage(const ProjectSceneFootageAddReqBody&
     // Create ProjectAndSceneVo equivalent data for API compatibility
     nlohmann::json resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
     
-    return ApiResult(true, "Footage added successfully", patches, resultData);
+    return ApiResult::success(patches, resultData);
 }
 
 ApiResult ExtendedControllerAPI::deleteFootage(const ProjectSceneFootageDeleteReqBody& reqBody) {
     if (!dataStore) {
-        return ApiResult(false, "DataStore not initialized");
+        return ApiResult::error(ApiMessage::DATASTORE_NOT_INITIALIZED);
     }
     
     // Find target scene
     ExtendedProjectScene* scene = dataStore->findScene(reqBody.sceneUuid);
     if (!scene) {
-        return ApiResult(false, "Scene not found");
+        return ApiResult::error(ApiMessage::PROJECT_VIDEO_SCENE_NOT_FOUND);
     }
     
     // Find and remove footage from scene bRolls
@@ -1792,7 +1792,7 @@ ApiResult ExtendedControllerAPI::deleteFootage(const ProjectSceneFootageDeleteRe
         });
     
     if (it == scene->bRolls.end()) {
-        return ApiResult(false, "Footage not found in scene");
+        return ApiResult::error(ApiMessage::PROJECT_VIDEO_SCENE_NOT_FOUND);
     }
     
     scene->bRolls.erase(it, scene->bRolls.end());
@@ -1814,18 +1814,18 @@ ApiResult ExtendedControllerAPI::deleteFootage(const ProjectSceneFootageDeleteRe
     // Create ProjectAndSceneVo equivalent data for API compatibility
     nlohmann::json resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
     
-    return ApiResult(true, "Footage deleted successfully", patch, resultData);
+    return ApiResult::success(patch, resultData);
 }
 
 ApiResult ExtendedControllerAPI::deleteVoiceOver(const DeleteVoiceOverReqBody& reqBody) {
     if (!dataStore) {
-        return ApiResult(false, "DataStore not initialized");
+        return ApiResult::error(ApiMessage::DATASTORE_NOT_INITIALIZED);
     }
     
     // Find target scene
     ExtendedProjectScene* scene = dataStore->findScene(reqBody.sceneUuid);
     if (!scene) {
-        return ApiResult(false, "Scene not found");
+        return ApiResult::error(ApiMessage::PROJECT_VIDEO_SCENE_NOT_FOUND);
     }
     
     // Find and remove voice over from scene voiceOvers
@@ -1835,7 +1835,7 @@ ApiResult ExtendedControllerAPI::deleteVoiceOver(const DeleteVoiceOverReqBody& r
         });
     
     if (it == scene->voiceOvers.end()) {
-        return ApiResult(false, "Voice over not found in scene");
+        return ApiResult::error(ApiMessage::PROJECT_VIDEO_SCENE_NOT_FOUND);
     }
     
     scene->voiceOvers.erase(it, scene->voiceOvers.end());
@@ -1849,18 +1849,18 @@ ApiResult ExtendedControllerAPI::deleteVoiceOver(const DeleteVoiceOverReqBody& r
     // Convert to JSON data equivalent for API compatibility
     auto resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
     
-    return ApiResult(true, "Voice over deleted successfully", patch, resultData);
+    return ApiResult::success(patch, resultData);
 }
 
 ApiResult ExtendedControllerAPI::adjustVoiceOver(const AdjustVoiceOverReqBody& reqBody) {
     if (!dataStore) {
-        return ApiResult(false, "DataStore not initialized");
+        return ApiResult::error(ApiMessage::DATASTORE_NOT_INITIALIZED);
     }
     
     // Find target scene
     ExtendedProjectScene* scene = dataStore->findScene(reqBody.sceneUuid);
     if (!scene) {
-        return ApiResult(false, "Scene not found");
+        return ApiResult::error(ApiMessage::PROJECT_VIDEO_SCENE_NOT_FOUND);
     }
     
     // Find voice over in scene
@@ -1873,7 +1873,7 @@ ApiResult ExtendedControllerAPI::adjustVoiceOver(const AdjustVoiceOverReqBody& r
     }
     
     if (!voiceOver) {
-        return ApiResult(false, "Voice over not found in scene");
+        return ApiResult::error(ApiMessage::PROJECT_VIDEO_SCENE_NOT_FOUND);
     }
     
     nlohmann::json patch = nlohmann::json::array();
@@ -1909,18 +1909,18 @@ ApiResult ExtendedControllerAPI::adjustVoiceOver(const AdjustVoiceOverReqBody& r
     // Convert to JSON data equivalent for API compatibility
     auto resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
     
-    return ApiResult(true, "Voice over adjusted successfully", patch, resultData);
+    return ApiResult::success(patch, resultData);
 }
 
 ApiResult ExtendedControllerAPI::editScript(const ProjectSceneEditScriptReqBody& reqBody) {
     if (!dataStore) {
-        return ApiResult(false, "DataStore not initialized");
+        return ApiResult::error(ApiMessage::DATASTORE_NOT_INITIALIZED);
     }
     
     // Find target scene
     ExtendedProjectScene* scene = dataStore->findScene(reqBody.sceneUuid);
     if (!scene) {
-        return ApiResult(false, "Scene not found");
+        return ApiResult::error(ApiMessage::PROJECT_VIDEO_SCENE_NOT_FOUND);
     }
     
     // Update scene transcript
@@ -1946,18 +1946,18 @@ ApiResult ExtendedControllerAPI::editScript(const ProjectSceneEditScriptReqBody&
         }}
     });
     
-    return ApiResult(true, "Script edited successfully", patch);
+    return ApiResult::success(patch);
 }
 
 ApiResult ExtendedControllerAPI::setSceneTranscript(const ProjectSceneSetTranscriptReqBody& reqBody) {
     if (!dataStore) {
-        return ApiResult(false, "DataStore not initialized");
+        return ApiResult::error(ApiMessage::DATASTORE_NOT_INITIALIZED);
     }
     
     // Find target scene
     ExtendedProjectScene* scene = dataStore->findScene(reqBody.sceneUuid);
     if (!scene) {
-        return ApiResult(false, "Scene not found");
+        return ApiResult::error(ApiMessage::PROJECT_VIDEO_SCENE_NOT_FOUND);
     }
     
     // Initialize scene transcript if not exists
@@ -2002,18 +2002,18 @@ ApiResult ExtendedControllerAPI::setSceneTranscript(const ProjectSceneSetTranscr
         }}
     });
     
-    return ApiResult(true, "Scene transcript set successfully", patch);
+    return ApiResult::success(patch);
 }
 
 ApiResult ExtendedControllerAPI::changeHighlight(const EditSceneHighLightReqBody& reqBody) {
     if (!dataStore) {
-        return ApiResult(false, "DataStore not initialized");
+        return ApiResult::error(ApiMessage::DATASTORE_NOT_INITIALIZED);
     }
     
     // Find target scene
     ExtendedProjectScene* scene = dataStore->findScene(reqBody.sceneUuid);
     if (!scene) {
-        return ApiResult(false, "Scene not found");
+        return ApiResult::error(ApiMessage::PROJECT_VIDEO_SCENE_NOT_FOUND);
     }
     
     // Update scene highlights
@@ -2033,18 +2033,18 @@ ApiResult ExtendedControllerAPI::changeHighlight(const EditSceneHighLightReqBody
         {"value", reqBody.highLights}
     });
     
-    return ApiResult(true, "Scene highlights changed successfully", patch);
+    return ApiResult::success(patch);
 }
 
 ApiResult ExtendedControllerAPI::deleteTransition(const std::string& sceneUuid) {
     if (!dataStore) {
-        return ApiResult(false, "DataStore not initialized");
+        return ApiResult::error(ApiMessage::DATASTORE_NOT_INITIALIZED);
     }
     
     // Find target scene
     ExtendedProjectScene* scene = dataStore->findScene(sceneUuid);
     if (!scene) {
-        return ApiResult(false, "Scene not found");
+        return ApiResult::error(ApiMessage::PROJECT_VIDEO_SCENE_NOT_FOUND);
     }
     
     // Clear transitions
@@ -2056,12 +2056,12 @@ ApiResult ExtendedControllerAPI::deleteTransition(const std::string& sceneUuid) 
         {"path", "/scenes/" + sceneUuid + "/transitions"}
     });
     
-    return ApiResult(true, "Scene transition deleted successfully", patch);
+    return ApiResult::success(patch);
 }
 
 ApiResult ExtendedControllerAPI::setMainStoryOrder(const SetMainStoryOrderReqBody& reqBody) {
     if (!dataStore) {
-        return ApiResult(false, "DataStore not initialized");
+        return ApiResult::error(ApiMessage::DATASTORE_NOT_INITIALIZED);
     }
     
     // Update the order of scenes in the project
@@ -2105,12 +2105,12 @@ ApiResult ExtendedControllerAPI::setMainStoryOrder(const SetMainStoryOrderReqBod
         {"value", reqBody.timelineUuids}
     });
     
-    return ApiResult(true, "Main story order set successfully", patch);
+    return ApiResult::success(patch);
 }
 
 ApiResult ExtendedControllerAPI::changeFitType(const ChangeFitTypeReqBody& reqBody) {
     if (!dataStore) {
-        return ApiResult(false, "DataStore not initialized");
+        return ApiResult::error(ApiMessage::DATASTORE_NOT_INITIALIZED);
     }
     
     // Update project style fit type
@@ -2159,12 +2159,12 @@ ApiResult ExtendedControllerAPI::changeFitType(const ChangeFitTypeReqBody& reqBo
         }}
     });
     
-    return ApiResult(true, "Fit type changed successfully", patch);
+    return ApiResult::success(patch);
 }
 
 ApiResult ExtendedControllerAPI::changeScaleToAll(const UpdateProjectScaleReqBody& reqBody) {
     if (!dataStore) {
-        return ApiResult(false, "DataStore not initialized");
+        return ApiResult::error(ApiMessage::DATASTORE_NOT_INITIALIZED);
     }
     
     // Update scale for scenes containing the specified timeline
@@ -2209,7 +2209,7 @@ ApiResult ExtendedControllerAPI::changeScaleToAll(const UpdateProjectScaleReqBod
     }
     
     if (!timelineFound) {
-        return ApiResult(false, "Timeline not found in any scene");
+        return ApiResult::error(ApiMessage::PROJECT_VIDEO_SCENE_NOT_FOUND);
     }
     
     nlohmann::json patch = nlohmann::json::array();
@@ -2224,7 +2224,7 @@ ApiResult ExtendedControllerAPI::changeScaleToAll(const UpdateProjectScaleReqBod
         }}
     });
     
-    return ApiResult(true, "Scale changed for all scenes successfully", patch);
+    return ApiResult::success(patch);
 }
 
 // Core business logic implementation - assembleSceneAndTimelines
@@ -2327,12 +2327,12 @@ ApiResult ExtendedControllerAPI::addBgm(const ProjectBgmAddReqBody& reqBody) {
     // Convert to JSON data equivalent for API compatibility  
     auto resultData = convertProjectToProjectAndScenesVo();
     
-    return ApiResult(true, "BGM added successfully", patch, resultData);
+    return ApiResult::success(patch, resultData);
 }
 
 ApiResult ExtendedControllerAPI::deleteBgm(const ProjectBgmDeleteReqBody& reqBody) {
     if (!dataStore) {
-        return ApiResult(false, "DataStore not initialized", nlohmann::json::array());
+        return ApiResult::error(ApiMessage::DATASTORE_NOT_INITIALIZED);
     }
     
     auto& project = dataStore->getProject();
@@ -2346,7 +2346,7 @@ ApiResult ExtendedControllerAPI::deleteBgm(const ProjectBgmDeleteReqBody& reqBod
         });
     
     if (bgmIt == bgms.end()) {
-        return ApiResult(false, "BGM not found", nlohmann::json::array());
+        return ApiResult::error(ApiMessage::PROJECT_VIDEO_SCENE_NOT_FOUND);
     }
     
     // Step 2: Find and remove associated assets
@@ -2387,7 +2387,7 @@ ApiResult ExtendedControllerAPI::deleteBgm(const ProjectBgmDeleteReqBody& reqBod
     // Convert to JSON data equivalent for API compatibility
     auto resultData = convertProjectToProjectAndScenesVo();
     
-    return ApiResult(true, "BGM and associated assets deleted successfully", patches, resultData);
+    return ApiResult::success(patches, resultData);
 }
 
 ApiResult ExtendedControllerAPI::editBgm(const ProjectBgmEditReqBody& reqBody) {
@@ -2428,7 +2428,7 @@ ApiResult ExtendedControllerAPI::editBgm(const ProjectBgmEditReqBody& reqBody) {
     // Convert to JSON data equivalent for API compatibility
     auto resultData = convertProjectToProjectAndScenesVo();
     
-    return ApiResult(true, "BGM edited successfully", patch, resultData);
+    return ApiResult::success(patch, resultData);
 }
 
 ApiResult ExtendedControllerAPI::adjustBgmAudio(const PsSceneTimelineVolumeReqBody& reqBody) {
@@ -2445,7 +2445,7 @@ ApiResult ExtendedControllerAPI::adjustBgmAudio(const PsSceneTimelineVolumeReqBo
     // Convert to JSON data equivalent for API compatibility
     auto resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
     
-    return ApiResult(true, "BGM audio adjusted successfully", patch, resultData);
+    return ApiResult::success(patch, resultData);
 }
 
 // Tier 2 Style and Effects API implementations
@@ -2466,7 +2466,7 @@ ApiResult ExtendedControllerAPI::setSceneBgStyle(const PsSceneBgStyleReqBody& re
         });
     }
     
-    return ApiResult(true, "Scene background style set successfully", patch);
+    return ApiResult::success(patch);
 }
 
 ApiResult ExtendedControllerAPI::updateGraphicLayers(const ProjectGraphicLayerSettingsReqBody& reqBody) {
@@ -2489,7 +2489,7 @@ ApiResult ExtendedControllerAPI::updateGraphicLayers(const ProjectGraphicLayerSe
         {"value", layersArray}
     });
     
-    return ApiResult(true, "Graphic layers updated successfully", patch);
+    return ApiResult::success(patch);
 }
 
 ApiResult ExtendedControllerAPI::createBgImage(const CreateWallpaperReqBody& reqBody) {
@@ -2509,7 +2509,7 @@ ApiResult ExtendedControllerAPI::createBgImage(const CreateWallpaperReqBody& req
         }}
     });
     
-    return ApiResult(true, "Background image created successfully", patch);
+    return ApiResult::success(patch);
 }
 
 ApiResult ExtendedControllerAPI::addBgImage(const PsBgImageBo& reqBody) {
@@ -2528,7 +2528,7 @@ ApiResult ExtendedControllerAPI::addBgImage(const PsBgImageBo& reqBody) {
         }}
     });
     
-    return ApiResult(true, "Background image added successfully", patch);
+    return ApiResult::success(patch);
 }
 
 // Tier 2 Avatar Management API implementations
@@ -2549,7 +2549,7 @@ ApiResult ExtendedControllerAPI::addAvatar(const ChangeLookReqBody& reqBody) {
         }}
     });
     
-    return ApiResult(true, "Avatar added successfully", patch);
+    return ApiResult::success(patch);
 }
 
 ApiResult ExtendedControllerAPI::replaceAvatar(const ChangeLookReqBody& reqBody) {
@@ -2561,7 +2561,7 @@ ApiResult ExtendedControllerAPI::replaceAvatar(const ChangeLookReqBody& reqBody)
         {"value", reqBody.lookUuid}
     });
     
-    return ApiResult(true, "Avatar replaced successfully", patch);
+    return ApiResult::success(patch);
 }
 
 ApiResult ExtendedControllerAPI::deleteAvatar() {
@@ -2572,7 +2572,7 @@ ApiResult ExtendedControllerAPI::deleteAvatar() {
         {"path", "/scenes/*/layers/[type=avatar]"}
     });
     
-    return ApiResult(true, "Avatar deleted successfully", patch);
+    return ApiResult::success(patch);
 }
 
 ApiResult ExtendedControllerAPI::clearDeletedAvatar() {
@@ -2583,7 +2583,7 @@ ApiResult ExtendedControllerAPI::clearDeletedAvatar() {
         {"path", "/scenes/*/layers/[type=avatar][deleted=true]"}
     });
     
-    return ApiResult(true, "Deleted avatars cleared successfully", patch);
+    return ApiResult::success(patch);
 }
 
 ApiResult ExtendedControllerAPI::changeDeletedAvatar() {
@@ -2595,20 +2595,20 @@ ApiResult ExtendedControllerAPI::changeDeletedAvatar() {
         {"value", false}
     });
     
-    return ApiResult(true, "Deleted avatar status changed successfully", patch);
+    return ApiResult::success(patch);
 }
 
 // Complete business logic implementation: mergeScenes with full backend parity
 ApiResult ExtendedControllerAPI::mergeScenes(const ExtendedProjectSceneMergeReqBody& reqBody) {
     if (!dataStore) {
-        return ApiResult(false, "DataStore not initialized");
+        return ApiResult::error(ApiMessage::DATASTORE_NOT_INITIALIZED);
     }
     
     nlohmann::json patches = nlohmann::json::array();
     
     // Step 1: Input validation - ensure exactly 2 scene UUIDs
     if (reqBody.sceneUuids.size() != 2) {
-        return ApiResult(false, "Exactly 2 scene UUIDs required for merge operation");
+        return ApiResult::error(ApiMessage::ILLEGAL_PARAMS);
     }
     
     const std::string& uuid1 = reqBody.sceneUuids[0];
@@ -2619,7 +2619,7 @@ ApiResult ExtendedControllerAPI::mergeScenes(const ExtendedProjectSceneMergeReqB
     ExtendedProjectScene* scene2 = dataStore->findScene(uuid2);
     
     if (!scene1 || !scene2) {
-        return ApiResult(false, "One or both scenes not found");
+        return ApiResult::error(ApiMessage::PROJECT_VIDEO_SCENE_NOT_FOUND);
     }
     
     // Step 2: Determine scene order based on timeOffsetInProject (same as Java backend)
@@ -2635,14 +2635,14 @@ ApiResult ExtendedControllerAPI::mergeScenes(const ExtendedProjectSceneMergeReqB
     // Step 3: Scene type validation - filter intro/outro scenes (Java backend logic)
     if (formerScene->sceneType == SceneTypeEnum::INTRO || formerScene->sceneType == SceneTypeEnum::OUTRO ||
         latterScene->sceneType == SceneTypeEnum::INTRO || latterScene->sceneType == SceneTypeEnum::OUTRO) {
-        return ApiResult(false, "Cannot merge intro/outro scenes");
+        return ApiResult::error(ApiMessage::ACTION_DENIED);
     }
     
     // Step 3.5: Additional validation - disallow merging two blank scenes (parity rule)
     if (parityOptions.enforceBlankSceneMergeRule &&
         formerScene->sceneType == SceneTypeEnum::BLANK_SCENE &&
         latterScene->sceneType == SceneTypeEnum::BLANK_SCENE) {
-        return ApiResult(false, "Cannot merge two blank scenes");
+        return ApiResult::error(ApiMessage::ACTION_DENIED);
     }
     
     // Step 4: Get timelines for both scenes
@@ -2893,12 +2893,12 @@ ApiResult ExtendedControllerAPI::mergeScenes(const ExtendedProjectSceneMergeReqB
     // Step 13: Recompute all offsets to ensure consistency
     dataStore->recomputeOffsets();
     
-    return ApiResult(true, "Scenes merged successfully with complete business logic parity", patches);
+    return ApiResult::success(patches);
 }
 
 ApiResult ExtendedControllerAPI::addSceneAudio(const AddSceneAudioReqBody& reqBody) {
     if (!dataStore) {
-        return ApiResult(false, "DataStore not initialized");
+        return ApiResult::error(ApiMessage::DATASTORE_NOT_INITIALIZED);
     }
     
     nlohmann::json patches = nlohmann::json::array();
@@ -2911,14 +2911,14 @@ ApiResult ExtendedControllerAPI::addSceneAudio(const AddSceneAudioReqBody& reqBo
         });
     
     if (sceneIt == scenes.end()) {
-        return ApiResult(false, "Scene not found: " + reqBody.sceneUuid);
+        return ApiResult::error(ApiMessage::PROJECT_VIDEO_SCENE_NOT_FOUND);
     }
     
     ExtendedProjectScene& targetScene = *sceneIt;
     
     // Step 2: Validate scene type (only blank scenes can have audio added)
     if (targetScene.sceneType != SceneTypeEnum::BLANK_SCENE) {
-        return ApiResult(false, "Only blank scenes can have audio added");
+        return ApiResult::error(ApiMessage::ACTION_DENIED);
     }
     
     // Step 3: Check if scene already has story audio
@@ -2937,7 +2937,7 @@ ApiResult ExtendedControllerAPI::addSceneAudio(const AddSceneAudioReqBody& reqBo
     }
     
     if (hasStoryAudio) {
-        return ApiResult(false, "Scene already has story audio");
+        return ApiResult::error(ApiMessage::PROJECT_SCENE_STORY_AUDIO_EXIST);
     }
     
     // Step 4: Create new timeline for the audio
@@ -3022,7 +3022,7 @@ ApiResult ExtendedControllerAPI::addSceneAudio(const AddSceneAudioReqBody& reqBo
     // Convert to JSON data equivalent for API compatibility
     auto resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
     
-    return ApiResult(true, "Scene audio added successfully", patches, resultData);
+    return ApiResult::success(patches, resultData);
 }
 
 } // namespace pjson

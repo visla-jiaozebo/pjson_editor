@@ -24,6 +24,7 @@ enable_testing()
 add_library(pjson_editor 
     src/ControllerAPI.cpp
     src/DataStore.cpp
+    src/ApiMessage.cpp
 )
 
 target_include_directories(pjson_editor

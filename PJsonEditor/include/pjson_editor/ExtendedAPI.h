@@ -3,6 +3,7 @@
 #define PJSON_EDITOR_EXTENDED_API_H
 
 #include "ExtendedModels.h"
+#include "ApiMessage.h"
 #include <cassert>
 #include <memory>
 #include <nlohmann/json.hpp>
@@ -16,13 +17,41 @@ class ExtendedDataStore; // fwd
 std::string genUuid();
 
 struct ApiResult {
-    bool success{false};
-    std::string message;
+    ApiMessage apiMessage{ApiMessage::SUCCESS};
     nlohmann::json patch;
     nlohmann::json data;  // New member to hold controller return structure equivalent
+    
     ApiResult() = default;
-    ApiResult(bool s, const std::string& m, const nlohmann::json& p = nlohmann::json::array(), const nlohmann::json& d = nlohmann::json::object())
-        : success(s), message(m), patch(p), data(d) {}
+    ApiResult(ApiMessage msg, const nlohmann::json& p = nlohmann::json::array(), const nlohmann::json& d = nlohmann::json::object())
+        : apiMessage(msg), patch(p), data(d) {}
+    
+    // Convenience methods for checking success/failure
+    bool isSuccess() const {
+        return apiMessage == ApiMessage::SUCCESS;
+    }
+    
+    bool isError() const {
+        return apiMessage != ApiMessage::SUCCESS;
+    }
+    
+    // Get error code from ApiMessage
+    int getCode() const {
+        return ApiMessageHelper::getCode(apiMessage);
+    }
+    
+    // Get error message text
+    std::string getMessage() const {
+        return ApiMessageHelper::getMessage(apiMessage);
+    }
+    
+    // Static factory methods for common patterns
+    static ApiResult error(ApiMessage apiMsg) {
+        return ApiResult(apiMsg);
+    }
+    
+    static ApiResult success(const nlohmann::json& p = nlohmann::json::array(), const nlohmann::json& d = nlohmann::json::object()) {
+        return ApiResult(ApiMessage::SUCCESS, p, d);
+    }
 };
 
 struct BackendParityOptions {
