@@ -107,25 +107,30 @@ const std::string api_request_client::BASE_URL =
 nlohmann::json
 api_request_client::post(const std::string &endpoint,
                          const nlohmann::json &request_body,
-                         const std::map<std::string, std::string> &params,
                          const std::string &method) {
   std::string url = BASE_URL + endpoint;
   std::string json_body = request_body.dump();
+
+  std::cout << "Executing: " << method << " " << url << std::endl;
   CurlHttpClient::Response response =
       http_client.post(url, json_body, method, auth_token);
   json response_json;
   try {
     response_json = json::parse(response.body);
+    if (response_json.contains("code") && response_json["code"] != 0) {
+      std::cerr << "API Error: " << response_json["code"]  << " Message: "<< response_json["message"] << std::endl << "Body: " << request_body << std::endl;
+      
+    }
   } catch (const json::exception &e) {
     assert(false && "JSON parse error in response");
   }
+
   return response_json;
 }
 
 // Generic GET method for API testing
 nlohmann::json
-api_request_client::get(const std::string &endpoint,
-                        const std::map<std::string, std::string> &params) {
+api_request_client::get(const std::string &endpoint) {
   std::string url = BASE_URL + endpoint;
   CurlHttpClient::Response response = http_client.get(url, auth_token);
   json response_json;

@@ -41,12 +41,12 @@ target_link_libraries(pjson_editor
 add_library(PJsonEditor::pjson_editor ALIAS pjson_editor)
 
 # Doctest based tests
-add_executable(test_addscene_doctest
-    tests/test_addscene_doctest.cpp
+add_executable(test_scene
+    tests/test_scene.cpp
     tests/impl/server_login.cpp
 )
 
-target_link_libraries(test_addscene_doctest
+target_link_libraries(test_scene
     PRIVATE
         pjson_editor
         doctest::doctest

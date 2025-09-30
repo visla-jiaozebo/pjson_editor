@@ -48,9 +48,6 @@ public:
         }
         cmd += "-d @" + temp_file + " ";
         cmd += "\"" + url + "\"";
-
-        std::cout << "Executing: " << method << " " << url << std::endl;
-
         try {
             std::string output = exec_command(cmd.c_str());
             
@@ -69,7 +66,6 @@ public:
             resp.status_code = 0;
             resp.body = "Error: " + std::string(e.what());
         }
-        std::cout << "Executed: " << method << " " << url << " " << resp.status_code << std::endl;
         // Clean up temp file
         std::remove(temp_file.c_str());
         

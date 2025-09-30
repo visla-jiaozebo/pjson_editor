@@ -46,13 +46,10 @@ public:
   // Generic HTTP methods for API testing
   nlohmann::json post(const std::string &endpoint,
                       const nlohmann::json &request_body,
-                      const std::map<std::string, std::string> &params = {},
                       const std::string &method = "POST");
-  nlohmann::json get(const std::string &endpoint,
-                     const std::map<std::string, std::string> &params = {});
+  nlohmann::json get(const std::string &endpoint);
   inline nlohmann::json
-  del(const std::string &endpoint,
-      const std::map<std::string, std::string> &params = {}) {
-    return post(endpoint, nullptr, params, "DELETE");
+  del(const std::string &endpoint, const nlohmann::json &request_body) {
+    return post(endpoint, request_body, "DELETE");
   }
 };
