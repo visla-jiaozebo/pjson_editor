@@ -1,3 +1,4 @@
+#include "nlohmann/json.hpp"
 #include <map>
 #include <string>
 namespace pjson {
@@ -8,21 +9,21 @@ class ExtendedControllerAPI;
 struct Request {
   std::string method;
   std::string url;
+  nlohmann::json body;
   std::map<std::string, std::string> headers;
-  std::string body;
 };
 
 struct Response {
   int status_code;
   std::map<std::string, std::string> headers;
-  std::string body;
+  nlohmann::json body;
 };
 
 class PJsonEditor {
 public:
-  PJsonEditor(const std::string &);
-  virtual Response get(Request) = 0;
-  virtual Response post(Request) = 0;
+  PJsonEditor(const nlohmann::json &);
+  Response get(Request req);
+  Response post(Request req);
   virtual ~PJsonEditor() = default;
 
 private:

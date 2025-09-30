@@ -1,20 +1,21 @@
 #include <cassert>
+#include <memory>
 #include <string>
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "api_request_client.hpp"
 #include <doctest/doctest.h>
 #include <pjson_editor/ExtendedAPI.h>
 #include <pjson_editor/ExtendedModels.h>
+#include <pjson_editor/pjson_editor.hpp>
 using namespace pjson;
 
 class TestSceneContext {
 public:
-  ExtendedDataStore dataStore;
-  ExtendedControllerAPI api;
   api_request_client apiClient;
   const std::string PROPJECT_UUID = "1358840261077225472";
   std::string sceneUuid;
-
+  std::string localSceneUuid;
+  std::shared_ptr<pjson::PJsonEditor> executor;
   TestSceneContext() {
 
     // Login to get authentication token
@@ -26,9 +27,7 @@ public:
         apiClient.get("/v3/project/" + PROPJECT_UUID + "/scene/list");
 
     // Initialize the data store with an empty project
-    auto pjson = std::make_shared<ExtendedProjectAndScenesVo>(serverResponse);
-    dataStore.init(pjson);
-    api.setDataStore(&dataStore);
+    executor = std::make_shared<pjson::PJsonEditor>(serverResponse);
   }
 
   ~TestSceneContext() {
@@ -37,52 +36,54 @@ public:
     {
       // api.removeScene(sceneUuid);
     }
-
   }
 };
+
+void check_scene_name(const nlohmann::json &resp, const std::string &name) {
+  CHECK(resp["data"]["scene"]["name"] == name);
+}
 
 TEST_CASE_FIXTURE(TestSceneContext, "/v3/project/{projectUuid}/scene/") {
   { //"scene/add"
     nlohmann::json requestBody{{"addPosition", 1}, {"duration", 10000}};
-    nlohmann::json serverResponse = apiClient.post(
-        "/v3/project/" + PROPJECT_UUID + "/scene/add", requestBody);
     {
+      nlohmann::json serverResponse = apiClient.post(
+          "/v3/project/" + PROPJECT_UUID + "/scene/add", requestBody);
       CHECK(serverResponse["code"] == 0);
       sceneUuid = serverResponse["data"]["sceneUuid"].get<std::string>();
+      check_scene_name(serverResponse, "New scene");
     }
     {
-      ExtendedProjectSceneAddReqBody reqBody;
-      reqBody.addPosition = requestBody["addPosition"];
-      reqBody.duration = requestBody["duration"];
-      auto r = api.addScene(reqBody);
-      REQUIRE(r.success);
-      
+      auto r =
+          executor->post({.method = "POST",
+                          .url = "/v3/project/" + PROPJECT_UUID + "/scene/add",
+                          .body = requestBody});
+      check_scene_name(r.body, "New scene");
+      localSceneUuid = r.body["data"]["sceneUuid"].get<std::string>();
     }
   }
   {
     // "scene/rename"
-    nlohmann::json requestBody{{"sceneUuid", sceneUuid}, {"name", "Renamed Scene" + sceneUuid}};
+    nlohmann::json requestBody{{"sceneUuid", sceneUuid},
+                               {"name", "Renamed Scene" + sceneUuid}};
     nlohmann::json serverResponse = apiClient.post(
-        "/v3/project/" + PROPJECT_UUID + "/scene/rename", requestBody,  "PUT");
+        "/v3/project/" + PROPJECT_UUID + "/scene/rename", requestBody, "PUT");
+    { check_scene_name(serverResponse, requestBody["name"]); }
     {
-      CHECK(serverResponse["code"] == 0);
-      // CHECK(serverResponse["data"]["name"] == requestBody["name"]);
-    }
-    {
-      ExtendedProjectSceneRenameReqBody reqBody;
-      reqBody.sceneUuid = requestBody["sceneUuid"];
-      reqBody.name = requestBody["name"];
-      auto r = api.renameScene(reqBody);
-      REQUIRE(r.success);
-      auto scene = dataStore.findScene(reqBody.sceneUuid);
-      REQUIRE(scene != nullptr);
-      CHECK(scene->name == requestBody["name"]);
+      requestBody["sceneUuid"] = localSceneUuid;
+      auto r = executor->post(
+          {.method = "PUT",
+           .url = "/v3/project/" + PROPJECT_UUID + "/scene/rename",
+           .body = requestBody});
+      check_scene_name(r.body, requestBody["name"]);
     }
   }
   {
     apiClient.del("/v3/project/" + PROPJECT_UUID + "/scene/delete",
                   {{"sceneUuid", sceneUuid}});
-    api.deleteScene({sceneUuid});
+    executor->post({.method = "DELETE",
+                    .url = "/v3/project/" + PROPJECT_UUID + "/scene/delete",
+                    .body = {{"sceneUuid", sceneUuid}}});
   }
 
   // Local ExtendedAPI comparison

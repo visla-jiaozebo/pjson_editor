@@ -273,27 +273,44 @@ struct ExtendedProjectAndScenesVo {
 
 // Request body structures (enhanced)
 struct ExtendedProjectSceneAddReqBody {
+    ExtendedProjectSceneAddReqBody() = default;
+    ExtendedProjectSceneAddReqBody(const nlohmann::json &_data){
+        addPosition = _data["addPosition"];
+        duration = _data.value("duration", 0);
+    };
     int addPosition;              // 与API参数保持一致：position(index) to be added
     std::optional<int> duration;  // 与API参数保持一致：scene duration in ms
-    
-    // 保留PJsonEditor特有的扩展字段，用于内部处理
-    std::optional<std::string> name;
-    std::optional<SceneTypeEnum> sceneType;
-    std::optional<SceneTranscript> initialTranscript;
 };
 
 struct ExtendedProjectSceneRenameReqBody { 
+    ExtendedProjectSceneRenameReqBody() = default;
+    ExtendedProjectSceneRenameReqBody(const nlohmann::json &_data) {
+        if (_data.contains("sceneUuid")) sceneUuid = _data["sceneUuid"];
+        if (_data.contains("name")) name = _data["name"];
+    }
     std::string sceneUuid; 
     std::string name; 
 };
 
 struct ExtendedProjectSceneMoveReqBody { 
+    ExtendedProjectSceneMoveReqBody() = default;
+    ExtendedProjectSceneMoveReqBody(const nlohmann::json &_data) {
+        if (_data.contains("uuid")) uuid = _data["uuid"];
+        if (_data.contains("newIndex")) newIndex = _data["newIndex"];
+        if (_data.contains("afterSceneUuid")) afterSceneUuid = _data["afterSceneUuid"];
+    }
     std::string uuid; 
     int newIndex;
     std::optional<std::string> afterSceneUuid; // UUID of scene to insert after
 };
 
 struct ExtendedProjectSceneSetTimeReqBody { 
+    ExtendedProjectSceneSetTimeReqBody() = default;
+    ExtendedProjectSceneSetTimeReqBody(const nlohmann::json &_data) {
+        if (_data.contains("sceneUuid")) sceneUuid = _data["sceneUuid"];
+        if (_data.contains("newDuration")) newDuration = _data["newDuration"];
+        else if (_data.contains("duration")) newDuration = _data["duration"];
+    }
     std::string sceneUuid; 
     int newDuration; 
 };
@@ -305,29 +322,70 @@ struct TimePeriod {
 };
 
 struct ExtendedProjectSceneCutReqBody { 
+    ExtendedProjectSceneCutReqBody() = default;
+    ExtendedProjectSceneCutReqBody(const nlohmann::json &_data) {
+        if (_data.contains("sceneUuid")) sceneUuid = _data["sceneUuid"];
+        if (_data.contains("cutList") && _data["cutList"].is_array()) {
+            for (const auto& period : _data["cutList"]) {
+                TimePeriod tp;
+                if (period.contains("start")) tp.start = period["start"];
+                if (period.contains("end")) tp.end = period["end"];
+                cutList.push_back(tp);
+            }
+        }
+    }
     std::string sceneUuid; 
     std::vector<TimePeriod> cutList;
 };
 
 struct ExtendedProjectSceneSplitReqBody { 
+    ExtendedProjectSceneSplitReqBody() = default;
+    ExtendedProjectSceneSplitReqBody(const nlohmann::json &_data) {
+        if (_data.contains("sceneUuid")) sceneUuid = _data["sceneUuid"];
+        if (_data.contains("splitTime")) splitTime = _data["splitTime"];
+    }
     std::string sceneUuid; 
     int splitTime; 
 };
 
 struct ExtendedProjectSceneMergeReqBody { 
+    ExtendedProjectSceneMergeReqBody() = default;
+    ExtendedProjectSceneMergeReqBody(const nlohmann::json &_data) {
+        if (_data.contains("sceneUuids") && _data["sceneUuids"].is_array()) {
+            for (const auto& uuid : _data["sceneUuids"]) {
+                sceneUuids.push_back(uuid.get<std::string>());
+            }
+        }
+    }
     std::vector<std::string> sceneUuids; 
 };
 
 struct ExtendedProjectSceneDeleteReqBody { 
+    ExtendedProjectSceneDeleteReqBody() = default;
+    ExtendedProjectSceneDeleteReqBody(const nlohmann::json &_data) {
+        if (_data.contains("sceneUuid")) sceneUuid = _data["sceneUuid"];
+    }
     std::string sceneUuid; 
 };
 
 struct ExtendedProjectSceneClearFootageReqBody { 
+    ExtendedProjectSceneClearFootageReqBody() = default;
+    ExtendedProjectSceneClearFootageReqBody(const nlohmann::json &_data) {
+        if (_data.contains("sceneUuid")) sceneUuid = _data["sceneUuid"];
+    }
     std::string sceneUuid; 
 };
 
 // Footage management
 struct ProjectSceneReplaceFootageReqBody {
+    ProjectSceneReplaceFootageReqBody() = default;
+    ProjectSceneReplaceFootageReqBody(const nlohmann::json &_data) {
+        if (_data.contains("sceneUuid")) sceneUuid = _data["sceneUuid"];
+        if (_data.contains("oldTimelineUuid")) oldTimelineUuid = _data["oldTimelineUuid"];
+        if (_data.contains("newAssetUuid")) newAssetUuid = _data["newAssetUuid"];
+        if (_data.contains("startTime")) startTime = _data["startTime"];
+        if (_data.contains("endTime")) endTime = _data["endTime"];
+    }
     std::string sceneUuid;
     std::string oldTimelineUuid;
     std::string newAssetUuid;
@@ -336,6 +394,16 @@ struct ProjectSceneReplaceFootageReqBody {
 };
 
 struct ProjectSceneAdjustFootageReqBody {
+    ProjectSceneAdjustFootageReqBody() = default;
+    ProjectSceneAdjustFootageReqBody(const nlohmann::json &_data) {
+        if (_data.contains("sceneUuid")) sceneUuid = _data["sceneUuid"];
+        if (_data.contains("timelineUuid")) timelineUuid = _data["timelineUuid"];
+        if (_data.contains("startTime")) startTime = _data["startTime"];
+        if (_data.contains("endTime")) endTime = _data["endTime"];
+        if (_data.contains("timeOffsetInScene")) timeOffsetInScene = _data["timeOffsetInScene"];
+        if (_data.contains("volume")) volume = _data["volume"];
+        if (_data.contains("cropData")) cropData = _data["cropData"];
+    }
     std::string sceneUuid;
     std::string timelineUuid;
     std::optional<int> startTime;
@@ -347,6 +415,15 @@ struct ProjectSceneAdjustFootageReqBody {
 
 // Voice over management
 struct AddVoiceOverReqBody {
+    AddVoiceOverReqBody() = default;
+    AddVoiceOverReqBody(const nlohmann::json &_data) {
+        if (_data.contains("sceneUuid")) sceneUuid = _data["sceneUuid"];
+        if (_data.contains("assetUuid")) assetUuid = _data["assetUuid"];
+        if (_data.contains("timeOffsetInScene")) timeOffsetInScene = _data["timeOffsetInScene"];
+        if (_data.contains("duration")) duration = _data["duration"];
+        if (_data.contains("audioOnly")) audioOnly = _data["audioOnly"];
+        if (_data.contains("shape")) shape = _data["shape"];
+    }
     std::string sceneUuid;
     std::string assetUuid;
     int timeOffsetInScene{0};
@@ -357,17 +434,44 @@ struct AddVoiceOverReqBody {
 
 // Add Scene Audio request body (matching API)
 struct AddSceneAudioReqBody {
+    AddSceneAudioReqBody() = default;
+    AddSceneAudioReqBody(const nlohmann::json &_data) {
+        if (_data.contains("sceneUuid")) sceneUuid = _data["sceneUuid"];
+        if (_data.contains("entityUuid")) entityUuid = _data["entityUuid"];
+        else if (_data.contains("assetUuid")) entityUuid = _data["assetUuid"];
+        if (_data.contains("entityType")) {
+            std::string typeStr = _data["entityType"];
+            if (typeStr == "PROJECT_ASSET") entityType = EntityTypeEnum::PROJECT_ASSET;
+            else if (typeStr == "CLIP") entityType = EntityTypeEnum::CLIP;
+            else entityType = EntityTypeEnum::PROJECT_ASSET; // default
+        } else {
+            entityType = EntityTypeEnum::PROJECT_ASSET; // default
+        }
+    }
     std::string sceneUuid;
     std::string entityUuid;
     EntityTypeEnum entityType;
 };
 
 struct ProjectSceneSetPauseTimeReqBody {
+    ProjectSceneSetPauseTimeReqBody() = default;
+    ProjectSceneSetPauseTimeReqBody(const nlohmann::json &_data) {
+        if (_data.contains("sceneUuid")) sceneUuid = _data["sceneUuid"];
+        if (_data.contains("pauseTime")) pauseTime = _data["pauseTime"];
+    }
     std::string sceneUuid;
     int pauseTime{0};
 };
 
 struct ProjectSceneTransitionReqBody {
+    ProjectSceneTransitionReqBody() = default;
+    ProjectSceneTransitionReqBody(const nlohmann::json &_data) {
+        if (_data.contains("sceneUuid")) sceneUuid = _data["sceneUuid"];
+        if (_data.contains("projectUuid")) projectUuid = _data["projectUuid"];
+        if (_data.contains("type")) type = _data["type"];
+        if (_data.contains("duration")) duration = _data["duration"];
+        if (_data.contains("forAllScenes")) forAllScenes = _data["forAllScenes"];
+    }
     std::string sceneUuid;
     std::string projectUuid;     // Added to match API
     std::string type;            // Changed from optional<SceneTransition> to direct fields
@@ -377,6 +481,16 @@ struct ProjectSceneTransitionReqBody {
 
 // Additional Tier 1 request bodies
 struct ProjectSceneFootageAddReqBody {
+    ProjectSceneFootageAddReqBody() = default;
+    ProjectSceneFootageAddReqBody(const nlohmann::json &_data) {
+        if (_data.contains("sceneUuid")) sceneUuid = _data["sceneUuid"];
+        if (_data.contains("assetUuid")) assetUuid = _data["assetUuid"];
+        if (_data.contains("timeOffsetInScene")) timeOffsetInScene = _data["timeOffsetInScene"];
+        if (_data.contains("duration")) duration = _data["duration"];
+        if (_data.contains("startTime")) startTime = _data["startTime"];
+        if (_data.contains("endTime")) endTime = _data["endTime"];
+        if (_data.contains("cropData")) cropData = _data["cropData"];
+    }
     std::string sceneUuid;
     std::string assetUuid;
     int timeOffsetInScene{0};
@@ -387,16 +501,36 @@ struct ProjectSceneFootageAddReqBody {
 };
 
 struct ProjectSceneFootageDeleteReqBody {
+    ProjectSceneFootageDeleteReqBody() = default;
+    ProjectSceneFootageDeleteReqBody(const nlohmann::json &_data) {
+        if (_data.contains("sceneUuid")) sceneUuid = _data["sceneUuid"];
+        if (_data.contains("timelineUuid")) timelineUuid = _data["timelineUuid"];
+    }
     std::string sceneUuid;
     std::string timelineUuid;
 };
 
 struct DeleteVoiceOverReqBody {
+    DeleteVoiceOverReqBody() = default;
+    DeleteVoiceOverReqBody(const nlohmann::json &_data) {
+        if (_data.contains("sceneUuid")) sceneUuid = _data["sceneUuid"];
+        if (_data.contains("timelineUuid")) timelineUuid = _data["timelineUuid"];
+    }
     std::string sceneUuid;
     std::string timelineUuid;
 };
 
 struct AdjustVoiceOverReqBody {
+    AdjustVoiceOverReqBody() = default;
+    AdjustVoiceOverReqBody(const nlohmann::json &_data) {
+        if (_data.contains("sceneUuid")) sceneUuid = _data["sceneUuid"];
+        if (_data.contains("timelineUuid")) timelineUuid = _data["timelineUuid"];
+        if (_data.contains("timeOffsetInScene")) timeOffsetInScene = _data["timeOffsetInScene"];
+        if (_data.contains("duration")) duration = _data["duration"];
+        if (_data.contains("volume")) volume = _data["volume"];
+        if (_data.contains("audioOnly")) audioOnly = _data["audioOnly"];
+        if (_data.contains("shape")) shape = _data["shape"];
+    }
     std::string sceneUuid;
     std::string timelineUuid;
     std::optional<int> timeOffsetInScene;
@@ -407,36 +541,94 @@ struct AdjustVoiceOverReqBody {
 };
 
 struct ProjectSceneEditScriptReqBody {
+    ProjectSceneEditScriptReqBody() = default;
+    ProjectSceneEditScriptReqBody(const nlohmann::json &_data) {
+        if (_data.contains("sceneUuid")) sceneUuid = _data["sceneUuid"];
+        if (_data.contains("script")) {
+            // Parse SceneTranscript from JSON - simplified version
+            auto scriptData = _data["script"];
+            if (scriptData.contains("text")) script.text = scriptData["text"];
+            if (scriptData.contains("duration")) script.duration = scriptData["duration"];
+            if (scriptData.contains("modified")) script.modified = scriptData["modified"];
+        }
+    }
     std::string sceneUuid;
     SceneTranscript script;
 };
 
 struct ProjectSceneSetTranscriptReqBody {
+    ProjectSceneSetTranscriptReqBody() = default;
+    ProjectSceneSetTranscriptReqBody(const nlohmann::json &_data) {
+        if (_data.contains("sceneUuid")) sceneUuid = _data["sceneUuid"];
+        if (_data.contains("newText")) newText = _data["newText"];
+        if (_data.contains("pacePercent")) pacePercent = _data["pacePercent"];
+    }
     std::string sceneUuid;
     std::string newText;
     int pacePercent;
 };
 
 struct EditSceneHighLightReqBody {
+    EditSceneHighLightReqBody() = default;
+    EditSceneHighLightReqBody(const nlohmann::json &_data) {
+        if (_data.contains("sceneUuid")) sceneUuid = _data["sceneUuid"];
+        if (_data.contains("highLights") && _data["highLights"].is_array()) {
+            for (const auto& highlight : _data["highLights"]) {
+                highLights.push_back(highlight.get<std::string>());
+            }
+        }
+    }
     std::string sceneUuid;
     std::vector<std::string> highLights; // highlight keywords
 };
 
 struct SetMainStoryOrderReqBody {
+    SetMainStoryOrderReqBody() = default;
+    SetMainStoryOrderReqBody(const nlohmann::json &_data) {
+        if (_data.contains("timelineUuids") && _data["timelineUuids"].is_array()) {
+            for (const auto& uuid : _data["timelineUuids"]) {
+                timelineUuids.push_back(uuid.get<std::string>());
+            }
+        }
+    }
     std::vector<std::string> timelineUuids;
 };
 
 struct ChangeFitTypeReqBody {
+    ChangeFitTypeReqBody() = default;
+    ChangeFitTypeReqBody(const nlohmann::json &_data) {
+        if (_data.contains("fitType")) fitType = _data["fitType"];
+    }
     int fitType{0}; // 0=fit, 1=fill, 2=stretch
 };
 
 struct UpdateProjectScaleReqBody {
+    UpdateProjectScaleReqBody() = default;
+    UpdateProjectScaleReqBody(const nlohmann::json &_data) {
+        if (_data.contains("timelineUuid")) timelineUuid = _data["timelineUuid"];
+        if (_data.contains("scale")) {
+            auto scaleData = _data["scale"];
+            if (scaleData.contains("scaleX")) scale.scaleX = scaleData["scaleX"];
+            if (scaleData.contains("scaleY")) scale.scaleY = scaleData["scaleY"];
+            if (scaleData.contains("offsetX")) scale.offsetX = scaleData["offsetX"];
+            if (scaleData.contains("offsetY")) scale.offsetY = scaleData["offsetY"];
+            if (scaleData.contains("cropRect")) scale.cropRect = scaleData["cropRect"];
+        }
+    }
     std::string timelineUuid;
     SceneScale scale;
 };
 
 // Tier 2 BGM Management request bodies
 struct ProjectBgmAddReqBody {
+    ProjectBgmAddReqBody() = default;
+    ProjectBgmAddReqBody(const nlohmann::json &_data) {
+        if (_data.contains("assetUuid")) assetUuid = _data["assetUuid"];
+        if (_data.contains("startSceneIndex")) startSceneIndex = _data["startSceneIndex"];
+        if (_data.contains("endSceneIndex")) endSceneIndex = _data["endSceneIndex"];
+        if (_data.contains("volume")) volume = _data["volume"];
+        if (_data.contains("loop")) loop = _data["loop"];
+    }
     std::string assetUuid;
     int startSceneIndex{0};
     int endSceneIndex{0};
@@ -445,10 +637,22 @@ struct ProjectBgmAddReqBody {
 };
 
 struct ProjectBgmDeleteReqBody {
+    ProjectBgmDeleteReqBody() = default;
+    ProjectBgmDeleteReqBody(const nlohmann::json &_data) {
+        if (_data.contains("timelineUuid")) timelineUuid = _data["timelineUuid"];
+    }
     std::string timelineUuid;  // 修改为与API一致的参数名
 };
 
 struct ProjectBgmEditReqBody {
+    ProjectBgmEditReqBody() = default;
+    ProjectBgmEditReqBody(const nlohmann::json &_data) {
+        if (_data.contains("bgmUuid")) bgmUuid = _data["bgmUuid"];
+        if (_data.contains("volume")) volume = _data["volume"];
+        if (_data.contains("loop")) loop = _data["loop"];
+        if (_data.contains("startSceneIndex")) startSceneIndex = _data["startSceneIndex"];
+        if (_data.contains("endSceneIndex")) endSceneIndex = _data["endSceneIndex"];
+    }
     std::string bgmUuid;
     std::optional<double> volume;
     std::optional<bool> loop;
@@ -457,22 +661,58 @@ struct ProjectBgmEditReqBody {
 };
 
 struct PsSceneTimelineVolumeReqBody {
+    PsSceneTimelineVolumeReqBody() = default;
+    PsSceneTimelineVolumeReqBody(const nlohmann::json &_data) {
+        if (_data.contains("sceneUuid")) sceneUuid = _data["sceneUuid"];
+        if (_data.contains("timelineVolumes") && _data["timelineVolumes"].is_object()) {
+            for (auto& [key, value] : _data["timelineVolumes"].items()) {
+                timelineVolumes[key] = value.get<double>();
+            }
+        }
+    }
     std::string sceneUuid;
     std::unordered_map<std::string, double> timelineVolumes; // timelineUuid -> volume
 };
 
 // Style and effects request bodies
 struct PsSceneBgStyleReqBody {
+    PsSceneBgStyleReqBody() = default;
+    PsSceneBgStyleReqBody(const nlohmann::json &_data) {
+        if (_data.contains("sceneUuid")) sceneUuid = _data["sceneUuid"];
+        if (_data.contains("bgColor")) bgColor = _data["bgColor"];
+        if (_data.contains("bgImageUuid")) bgImageUuid = _data["bgImageUuid"];
+    }
     std::string sceneUuid;
     std::string bgColor;
     std::optional<std::string> bgImageUuid;
 };
 
 struct ProjectGraphicLayerSettingsReqBody {
+    ProjectGraphicLayerSettingsReqBody() = default;
+    ProjectGraphicLayerSettingsReqBody(const nlohmann::json &_data) {
+        if (_data.contains("layers") && _data["layers"].is_array()) {
+            for (const auto& layerData : _data["layers"]) {
+                BaseLayer layer;
+                if (layerData.contains("uuid")) layer.uuid = layerData["uuid"];
+                if (layerData.contains("type")) layer.type = layerData["type"];
+                if (layerData.contains("timeOffsetInScene")) layer.timeOffsetInScene = layerData["timeOffsetInScene"];
+                if (layerData.contains("duration")) layer.duration = layerData["duration"];
+                if (layerData.contains("data")) layer.data = layerData["data"];
+                layers.push_back(layer);
+            }
+        }
+    }
     std::vector<BaseLayer> layers;
 };
 
 struct CreateWallpaperReqBody {
+    CreateWallpaperReqBody() = default;
+    CreateWallpaperReqBody(const nlohmann::json &_data) {
+        if (_data.contains("prompt")) prompt = _data["prompt"];
+        if (_data.contains("style")) style = _data["style"];
+        if (_data.contains("width")) width = _data["width"];
+        if (_data.contains("height")) height = _data["height"];
+    }
     std::string prompt;
     std::string style;
     int width{1920};
@@ -480,6 +720,12 @@ struct CreateWallpaperReqBody {
 };
 
 struct PsBgImageBo {
+    PsBgImageBo() = default;
+    PsBgImageBo(const nlohmann::json &_data) {
+        if (_data.contains("imageUrl")) imageUrl = _data["imageUrl"];
+        if (_data.contains("name")) name = _data["name"];
+        if (_data.contains("description")) description = _data["description"];
+    }
     std::string imageUrl;
     std::string name;
     std::optional<std::string> description;
@@ -487,6 +733,10 @@ struct PsBgImageBo {
 
 // Avatar management request bodies
 struct ChangeLookReqBody {
+    ChangeLookReqBody() = default;
+    ChangeLookReqBody(const nlohmann::json &_data) {
+        if (_data.contains("lookUuid")) lookUuid = _data["lookUuid"];
+    }
     std::string lookUuid;
 };
 

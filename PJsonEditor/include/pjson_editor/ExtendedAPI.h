@@ -62,7 +62,7 @@ struct BackendParityOptions {
 
 class ExtendedControllerAPI {
 private:
-    ExtendedDataStore* dataStore{nullptr};
+    std::shared_ptr<ExtendedDataStore> dataStore{nullptr};
     BackendParityOptions parityOptions{};
     
     // Helper methods for VO conversion
@@ -72,7 +72,7 @@ private:
     nlohmann::json convertAssetsMap(const std::unordered_map<std::string, ProjectSceneAsset>& assets) const;
     
 public:
-    void setDataStore(ExtendedDataStore* ds) { dataStore = ds; }
+    void setDataStore(std::shared_ptr<ExtendedDataStore> ds) { dataStore = ds; }
     void setParityOptions(const BackendParityOptions& o) { parityOptions = o; }
     const BackendParityOptions& getParityOptions() const { return parityOptions; }
     

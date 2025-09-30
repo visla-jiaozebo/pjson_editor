@@ -25,6 +25,7 @@ add_library(pjson_editor
     src/ControllerAPI.cpp
     src/DataStore.cpp
     src/ApiMessage.cpp
+    src/pjson_editor.cpp
 )
 
 target_include_directories(pjson_editor

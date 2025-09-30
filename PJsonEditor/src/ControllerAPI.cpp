@@ -432,16 +432,10 @@ ApiResult ExtendedControllerAPI::addScene(const ExtendedProjectSceneAddReqBody& 
     
     // Use name from reqBody if provided, otherwise default
     std::string sceneName = "New scene";
-    if (reqBody.name.has_value() && !reqBody.name.value().empty()) {
-        sceneName = reqBody.name.value();
-    }
     newScene.name = sceneName;
     
     // Determine scene type based on position (mirroring API behavior)
     SceneTypeEnum sceneType = SceneTypeEnum::DEFAULT;
-    if (reqBody.sceneType.has_value()) {
-        sceneType = reqBody.sceneType.value();
-    }
     // Use DEFAULT if no scene type specified
     newScene.sceneType = sceneType;
     
