@@ -31,7 +31,7 @@ private:
     }
     
 public:
-    Response post(const std::string& url, const std::string& json_body, const std::string& auth_token = "") {
+    Response post(const std::string& url, const std::string& json_body, const std::string& method="POST", const std::string& auth_token = "") {
         Response resp;
         
         // Create temporary file for JSON body
@@ -41,16 +41,16 @@ public:
         ofs.close();
         
         // Build curl command
-        std::string cmd = "curl -s -w \"HTTP_CODE:%{http_code}\" -X POST ";
+        std::string cmd = "curl -s -w \"HTTP_CODE:%{http_code}\" -X " + method + " ";
         cmd += "-H \"Content-Type: application/json\" ";
         if (!auth_token.empty()) {
             cmd += "-H \"token: " + auth_token + "\" ";
         }
         cmd += "-d @" + temp_file + " ";
         cmd += "\"" + url + "\"";
-        
-        std::cout << "Executing: " << cmd << std::endl;
-        
+
+        std::cout << "Executing: " << method << " " << url << std::endl;
+
         try {
             std::string output = exec_command(cmd.c_str());
             
@@ -69,7 +69,7 @@ public:
             resp.status_code = 0;
             resp.body = "Error: " + std::string(e.what());
         }
-        
+        std::cout << "Executed: " << method << " " << url << " " << resp.status_code << std::endl;
         // Clean up temp file
         std::remove(temp_file.c_str());
         

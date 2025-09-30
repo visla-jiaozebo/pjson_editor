@@ -71,7 +71,8 @@ bool api_request_client::create_test_project() {
   assert(response.success() && "Create project request failed");
   json response_json = json::parse(response.body);
   assert(response_json["code"] == 0 && "Create project failed");
-  assert(response_json.contains("data") && "No data in create project response");
+  assert(response_json.contains("data") &&
+         "No data in create project response");
   project_uuid = response_json["data"]["uuid"];
   return true;
 }
@@ -103,31 +104,35 @@ const std::string api_request_client::BASE_URL =
     "https://api-snapshot.dev01.vislaus.cn";
 
 // Generic POST method for API testing
-nlohmann::json api_request_client::post(const std::string& endpoint, const nlohmann::json& request_body, 
-                                         const std::map<std::string, std::string>& params) {
-    std::string url = BASE_URL + endpoint;
-    std::string json_body = request_body.dump();
-    CurlHttpClient::Response response = http_client.post(url, json_body, auth_token);
-    json response_json;
-    try {
-        response_json = json::parse(response.body);
-    } catch (const json::exception& e) {
-      assert(false && "JSON parse error in response");
-    }
-    
-    return response_json;
+nlohmann::json
+api_request_client::post(const std::string &endpoint,
+                         const nlohmann::json &request_body,
+                         const std::map<std::string, std::string> &params,
+                         const std::string &method) {
+  std::string url = BASE_URL + endpoint;
+  std::string json_body = request_body.dump();
+  CurlHttpClient::Response response =
+      http_client.post(url, json_body, method, auth_token);
+  json response_json;
+  try {
+    response_json = json::parse(response.body);
+  } catch (const json::exception &e) {
+    assert(false && "JSON parse error in response");
+  }
+  return response_json;
 }
 
 // Generic GET method for API testing
-nlohmann::json api_request_client::get(const std::string& endpoint, 
-                                        const std::map<std::string, std::string>& params) {
-    std::string url = BASE_URL + endpoint;
-    CurlHttpClient::Response response = http_client.get(url, auth_token);
-    json response_json;
-    try {
-        response_json = json::parse(response.body);
-    } catch (const json::exception& e) {
-      assert(false && "JSON parse error in response");
-    }
-    return response_json;
+nlohmann::json
+api_request_client::get(const std::string &endpoint,
+                        const std::map<std::string, std::string> &params) {
+  std::string url = BASE_URL + endpoint;
+  CurlHttpClient::Response response = http_client.get(url, auth_token);
+  json response_json;
+  try {
+    response_json = json::parse(response.body);
+  } catch (const json::exception &e) {
+    assert(false && "JSON parse error in response");
+  }
+  return response_json;
 }
