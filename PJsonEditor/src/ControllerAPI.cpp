@@ -574,7 +574,9 @@ ApiResult ExtendedControllerAPI::moveScene(const ExtendedProjectSceneMoveReqBody
         
         // Calculate insertion time offset
         if (afterScene.timeOffsetInProject == currScene.timeOffsetInProject) {
-            return ApiResult::success(patches);
+            // No change needed, return current scene count
+            nlohmann::json resultData = static_cast<int>(scenes.size());
+            return ApiResult::success(patches, resultData);
         } else if (afterScene.timeOffsetInProject < currScene.timeOffsetInProject) {
             // Moving backward
             insertTimeOffset = afterScene.timeOffsetInProject + afterScene.duration;
@@ -586,7 +588,9 @@ ApiResult ExtendedControllerAPI::moveScene(const ExtendedProjectSceneMoveReqBody
     
     // Step 5: Check if position unchanged
     if (insertTimeOffset == currScene.timeOffsetInProject) {
-        return ApiResult::success(patches);
+        // No change needed, return current scene count
+        nlohmann::json resultData = static_cast<int>(scenes.size());
+        return ApiResult::success(patches, resultData);
     }
     
     // Step 6: Calculate affected scenes and update their time offsets
@@ -723,7 +727,9 @@ ApiResult ExtendedControllerAPI::setSceneTime(const ExtendedProjectSceneSetTimeR
             {"value", targetScene.pauseTime.value()}
         });
         
-        return ApiResult::success(patches);
+        // Create ProjectAndSceneVo equivalent data for API compatibility
+        nlohmann::json resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
+        return ApiResult::success(patches, resultData);
     }
     
     // Step 4: Update scene duration and transcript if needed
@@ -1077,7 +1083,12 @@ ApiResult ExtendedControllerAPI::splitScene(const ExtendedProjectSceneSplitReqBo
     // Step 8: Recompute offsets to ensure consistency
     dataStore->recomputeOffsets();
     
-    return ApiResult::success(patches);
+    // Step 9: Create data array with both split scenes (following Java backend: List<ProjectAndSceneVo>)
+    nlohmann::json resultData = nlohmann::json::array();
+    resultData.push_back(convertProjectToProjectAndSceneVo(firstScene.uuid));
+    resultData.push_back(convertProjectToProjectAndSceneVo(secondScene.uuid));
+    
+    return ApiResult::success(patches, resultData);
 }
 
 ApiResult ExtendedControllerAPI::deleteScene(const ExtendedProjectSceneDeleteReqBody& reqBody) {
@@ -1526,7 +1537,9 @@ ApiResult ExtendedControllerAPI::setPauseTime(const ProjectSceneSetPauseTimeReqB
         {"value", reqBody.pauseTime}
     });
     
-    return ApiResult::success(patches);
+    // Create ProjectAndSceneVo equivalent data for API compatibility
+    nlohmann::json resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
+    return ApiResult::success(patches, resultData);
 }
 
 // Set scene transition **/v3/project/{projectUuid}/scene/set-transition**
@@ -2887,7 +2900,10 @@ ApiResult ExtendedControllerAPI::mergeScenes(const ExtendedProjectSceneMergeReqB
     // Step 13: Recompute all offsets to ensure consistency
     dataStore->recomputeOffsets();
     
-    return ApiResult::success(patches);
+    // Step 14: Create ProjectAndSceneVo equivalent data for API compatibility (following Java backend)
+    nlohmann::json resultData = convertProjectToProjectAndSceneVo(mergedScene.uuid);
+    
+    return ApiResult::success(patches, resultData);
 }
 
 ApiResult ExtendedControllerAPI::addSceneAudio(const AddSceneAudioReqBody& reqBody) {
