@@ -29,7 +29,7 @@ public:
         apiClient.get("/v3/project/" + PROPJECT_UUID + "/scene/list", params);
 
     // Initialize the data store with an empty project
-    ExtendedProjectAndScenesVo pjson{serverResponse};
+    auto pjson = std::make_shared<ExtendedProjectAndScenesVo>(serverResponse);
     dataStore.init(pjson);
     api.setDataStore(&dataStore);
   }

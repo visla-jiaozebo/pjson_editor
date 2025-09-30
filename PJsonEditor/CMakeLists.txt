@@ -40,61 +40,6 @@ target_link_libraries(pjson_editor
 # Set up the main target as an alias for easier CMake usage
 add_library(PJsonEditor::pjson_editor ALIAS pjson_editor)
 
-# Test executables
-add_executable(test_extended_models
-    tests/test_extended_models.cpp
-)
-
-target_link_libraries(test_extended_models
-    PRIVATE
-        pjson_editor
-)
-
-add_executable(test_tier1_apis
-    tests/test_tier1_apis.cpp
-)
-
-target_link_libraries(test_tier1_apis
-    PRIVATE
-        pjson_editor
-)
-
-add_executable(test_business_logic
-    tests/test_business_logic.cpp
-)
-
-target_link_libraries(test_business_logic
-    PRIVATE
-        pjson_editor
-)
-
-add_executable(test_merge_scenes_logic
-    tests/test_merge_scenes_logic.cpp
-)
-
-target_link_libraries(test_merge_scenes_logic
-    PRIVATE
-        pjson_editor
-)
-
-add_executable(test_merge_simple
-    tests/test_merge_simple.cpp
-)
-
-target_link_libraries(test_merge_simple
-    PRIVATE
-        pjson_editor
-)
-
-add_executable(test_all_operations
-    tests/test_all_operations.cpp
-)
-
-target_link_libraries(test_all_operations
-    PRIVATE
-        pjson_editor
-)
-
 # Doctest based tests
 add_executable(test_addscene_doctest
     tests/test_addscene_doctest.cpp

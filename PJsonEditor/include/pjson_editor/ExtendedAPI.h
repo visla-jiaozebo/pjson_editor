@@ -4,6 +4,7 @@
 
 #include "ExtendedModels.h"
 #include <cassert>
+#include <memory>
 #include <nlohmann/json.hpp>
 #include <string>
 #include <vector>
@@ -101,13 +102,13 @@ public:
 
 class ExtendedDataStore {
 private:
-    ExtendedProjectAndScenesVo project;
+    std::shared_ptr<ExtendedProjectAndScenesVo> project;
 public:
-    void init(const ExtendedProjectAndScenesVo& initialProject);
+    void init(std::shared_ptr<ExtendedProjectAndScenesVo> initialProject);
     ExtendedProjectAndScenesVo& getProject();
     const ExtendedProjectAndScenesVo& getProject() const;
     // Method to get current project data for external comparison
-    const ExtendedProjectAndScenesVo& getCurrentProjectData() const { return project; }
+    const ExtendedProjectAndScenesVo& getCurrentProjectData() const { return *project; }
     ExtendedProjectScene* findScene(const std::string& sceneUuid);
     void recomputeOffsets();
     // void insertScene(const ExtendedProjectScene& scene, int index = -1);

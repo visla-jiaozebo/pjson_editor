@@ -4,20 +4,20 @@
 
 namespace pjson {
 
-void ExtendedDataStore::init(const ExtendedProjectAndScenesVo& initialProject) {
+void ExtendedDataStore::init(std::shared_ptr<ExtendedProjectAndScenesVo> initialProject) {
     project = initialProject;
 }
 
 ExtendedProjectAndScenesVo& ExtendedDataStore::getProject() { 
-    return project; 
+    return *project; 
 }
 
 const ExtendedProjectAndScenesVo& ExtendedDataStore::getProject() const { 
-    return project; 
+    return *project; 
 }
 
 ExtendedProjectScene* ExtendedDataStore::findScene(const std::string& sceneUuid) {
-    for (auto& scene : project.scenes) {
+    for (auto& scene : project->scenes) {
         if (scene.uuid == sceneUuid) {
             return &scene;
         }
@@ -27,7 +27,7 @@ ExtendedProjectScene* ExtendedDataStore::findScene(const std::string& sceneUuid)
 
 void ExtendedDataStore::recomputeOffsets() {
     int totalOffset = 0;
-    for (auto& scene : project.scenes) {
+    for (auto& scene : project->scenes) {
         scene.timeOffsetInProject = totalOffset;
         
         // Update timelines within each scene
@@ -46,9 +46,9 @@ void ExtendedDataStore::recomputeOffsets() {
     
     // Also update project-level timelines 
     totalOffset = 0;
-    for (const auto& scene : project.scenes) {
+    for (const auto& scene : project->scenes) {
         // Update all timelines that belong to this scene
-        for (auto& timeline : project.timelines) {
+        for (auto& timeline : project->timelines) {
             if (timeline.sceneUuid == scene.uuid) {
                 timeline.timeOffsetInProject = totalOffset + timeline.timeOffsetInScene;
             }
@@ -59,7 +59,7 @@ void ExtendedDataStore::recomputeOffsets() {
     // Update BGM durations to match total project duration
     // This matches API behavior where BGM duration is automatically adjusted to project timeline
     int totalProjectDuration = totalOffset;
-    for (auto& bgm : project.bgms) {
+    for (auto& bgm : project->bgms) {
         if (bgm.duration != totalProjectDuration) {
             bgm.duration = totalProjectDuration;
         }
