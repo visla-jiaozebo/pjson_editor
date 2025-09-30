@@ -22,8 +22,7 @@ struct Response {
 class PJsonEditor {
 public:
   PJsonEditor(const nlohmann::json &);
-  Response get(Request req);
-  Response post(Request req);
+  Response call(Request req);
   virtual ~PJsonEditor() = default;
 
 private:

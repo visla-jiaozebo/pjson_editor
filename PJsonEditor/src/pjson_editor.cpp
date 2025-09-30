@@ -99,11 +99,7 @@ Response routeRequest(ExtendedControllerAPI *controller, const Request &req) {
                                       req.url);
 }
 
-Response PJsonEditor::get(Request req) {
-  return routeRequest(controller.get(), req);
-}
-
-Response PJsonEditor::post(Request req) {
+Response PJsonEditor::call(Request req) {
   return routeRequest(controller.get(), req);
 }
 

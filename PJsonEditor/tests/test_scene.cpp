@@ -55,7 +55,7 @@ TEST_CASE_FIXTURE(TestSceneContext, "/v3/project/{projectUuid}/scene/") {
     }
     {
       auto r =
-          executor->post({.method = "POST",
+          executor->call({.method = "POST",
                           .url = "/v3/project/" + PROPJECT_UUID + "/scene/add",
                           .body = requestBody});
       check_scene_name(r.body, "New scene");
@@ -71,7 +71,7 @@ TEST_CASE_FIXTURE(TestSceneContext, "/v3/project/{projectUuid}/scene/") {
     { check_scene_name(serverResponse, requestBody["name"]); }
     {
       requestBody["sceneUuid"] = localSceneUuid;
-      auto r = executor->post(
+      auto r = executor->call(
           {.method = "PUT",
            .url = "/v3/project/" + PROPJECT_UUID + "/scene/rename",
            .body = requestBody});
@@ -81,7 +81,7 @@ TEST_CASE_FIXTURE(TestSceneContext, "/v3/project/{projectUuid}/scene/") {
   {
     apiClient.del("/v3/project/" + PROPJECT_UUID + "/scene/delete",
                   {{"sceneUuid", sceneUuid}});
-    executor->post({.method = "DELETE",
+    executor->call({.method = "DELETE",
                     .url = "/v3/project/" + PROPJECT_UUID + "/scene/delete",
                     .body = {{"sceneUuid", sceneUuid}}});
   }
