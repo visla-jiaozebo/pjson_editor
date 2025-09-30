@@ -68,14 +68,59 @@ TEST_CASE_FIXTURE(TestSceneContext, "/v3/project/{projectUuid}/scene/") {
                                {"name", "Renamed Scene" + sceneUuid}};
     nlohmann::json serverResponse = apiClient.post(
         "/v3/project/" + PROPJECT_UUID + "/scene/rename", requestBody, "PUT");
-    { check_scene_name(serverResponse, requestBody["name"]); }
-    {
-      requestBody["sceneUuid"] = localSceneUuid;
+              requestBody["sceneUuid"] = localSceneUuid;
       auto r = executor->call(
           {.method = "PUT",
            .url = "/v3/project/" + PROPJECT_UUID + "/scene/rename",
            .body = requestBody});
-      check_scene_name(r.body, requestBody["name"]);
+           auto &localResponse = r.body;
+           CHECK(serverResponse["data"]["scene"]["name"] == localResponse["data"]["scene"]["name"]);
+           CHECK(serverResponse["data"]["scene"]["name"] == requestBody["name"]);
+  }
+  {
+    // "scene/split"
+    nlohmann::json requestBody{
+        {"sceneUuid", sceneUuid},
+        {"splitTime", 5000}}; // split at 5 seconds
+    std::string splitedSceneUuid[2];
+    std::string localSplitedSceneUuid[2];
+    {
+      nlohmann::json serverResponse = apiClient.post(
+          "/v3/project/" + PROPJECT_UUID + "/scene/split", requestBody, "PUT");
+
+      requestBody["sceneUuid"] = localSceneUuid;
+      auto r = executor->call(
+          {.method = "PUT",
+           .url = "/v3/project/" + PROPJECT_UUID + "/scene/split",
+           .body = requestBody});
+      auto &localResponse = r.body;
+      CHECK(serverResponse["code"] == localResponse["code"]);
+      CHECK(serverResponse["data"].is_array() == localResponse["data"].is_array());
+      CHECK(serverResponse["data"].size() == localResponse["data"].size());
+      splitedSceneUuid[0] = serverResponse["data"][0]["sceneUuid"].get<std::string>();
+      splitedSceneUuid[1] = serverResponse["data"][1]["sceneUuid"].get<std::string>();
+
+      localSplitedSceneUuid[0] = localResponse["data"][0]["sceneUuid"].get<std::string>();
+      localSplitedSceneUuid[1] = localResponse["data"][1]["sceneUuid"].get<std::string>();
+    }
+
+    {
+      // scene/merge
+      nlohmann::json requestBody{
+          {"sceneUuids", {splitedSceneUuid[0], splitedSceneUuid[1]}} // merge the two scenes back
+      };
+      nlohmann::json serverResponse = apiClient.post(
+          "/v3/project/" + PROPJECT_UUID + "/scene/merge", requestBody, "PUT");
+      requestBody["sceneUuids"] = {localSplitedSceneUuid[0], localSplitedSceneUuid[1]};
+      auto r = executor->call(
+          {.method = "PUT",
+           .url = "/v3/project/" + PROPJECT_UUID + "/scene/merge",
+           .body = requestBody});
+      auto &localResponse = r.body;
+      CHECK(serverResponse["code"] == localResponse["code"]);
+      sceneUuid = serverResponse["data"]["sceneUuid"].get<std::string>();
+      localSceneUuid = localResponse["data"]["sceneUuid"].get<std::string>();
+      assert(sceneUuid != "" && localSceneUuid != "" && "merge failed");
     }
   }
   {
