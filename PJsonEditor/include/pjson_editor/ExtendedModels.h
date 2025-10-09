@@ -18,7 +18,8 @@ enum class SceneTypeEnum { DEFAULT, INTRO, OUTRO, BLANK_SCENE };
 enum class ProjectTimelineCategoryEnum { 
     MAIN_STORY, INTRO, OUTRO, FOOTAGE, RECORD_VOICE_OVER, 
     SYNTHETIC_VOICE_OVER, STORY_AUDIO, NARRATION_VOICE_OVER,
-    AROLL, BROLL, VOICE_OVER  // Additional values for compatibility
+    AROLL, BROLL, VOICE_OVER,  // Additional values for compatibility
+    BACKGROUND_MUSIC  // BGM timeline category
 };
 enum class StatusEnum { ACTIVE, DELETED, DRAFT };
 enum class HighlightTypeEnum { KEYWORDS, SENTENCES };
@@ -799,7 +800,8 @@ NLOHMANN_JSON_SERIALIZE_ENUM(ProjectTimelineCategoryEnum, {
     {ProjectTimelineCategoryEnum::RECORD_VOICE_OVER, "RECORD_VOICE_OVER"},
     {ProjectTimelineCategoryEnum::SYNTHETIC_VOICE_OVER, "SYNTHETIC_VOICE_OVER"},
     {ProjectTimelineCategoryEnum::STORY_AUDIO, "STORY_AUDIO"},
-    {ProjectTimelineCategoryEnum::NARRATION_VOICE_OVER, "NARRATION_VOICE_OVER"}
+    {ProjectTimelineCategoryEnum::NARRATION_VOICE_OVER, "NARRATION_VOICE_OVER"},
+    {ProjectTimelineCategoryEnum::BACKGROUND_MUSIC, "BACKGROUND_MUSIC"}
 })
 
 NLOHMANN_JSON_SERIALIZE_ENUM(StatusEnum, {
@@ -833,6 +835,65 @@ NLOHMANN_JSON_SERIALIZE_ENUM(EntityTypeEnum, {
     {EntityTypeEnum::WORKSPACE, "workspace"},
     {EntityTypeEnum::TEAMSPACE, "teamspace"}
 })
+
+// Scale-related structures (matching Java PsScaleParamsBo, PsTimelineScaleBo, PsSceneScaleReqBody)
+struct PsScaleParams {
+    double value{1.0};
+    std::optional<std::vector<double>> coordOffset;
+    
+    PsScaleParams() = default;
+    PsScaleParams(const nlohmann::json& data) {
+        if (data.contains("value") && !data["value"].is_null()) {
+            value = data["value"].get<double>();
+        }
+        if (data.contains("coordOffset") && !data["coordOffset"].is_null()) {
+            coordOffset = data["coordOffset"].get<std::vector<double>>();
+        }
+    }
+};
+
+struct PsTimelineScale {
+    std::string timelineUuid;
+    PsScaleParams scale;
+    
+    PsTimelineScale() = default;
+    PsTimelineScale(const nlohmann::json& data) {
+        if (data.contains("timelineUuid") && !data["timelineUuid"].is_null()) {
+            timelineUuid = data["timelineUuid"].get<std::string>();
+        }
+        if (data.contains("scale") && !data["scale"].is_null()) {
+            scale = PsScaleParams(data["scale"]);
+        }
+    }
+};
+
+struct PsSceneScaleReqBody {
+    std::string sceneUuid;
+    std::vector<PsTimelineScale> scales;
+    
+    PsSceneScaleReqBody() = default;
+    PsSceneScaleReqBody(const nlohmann::json& data) {
+        if (data.contains("sceneUuid") && !data["sceneUuid"].is_null()) {
+            sceneUuid = data["sceneUuid"].get<std::string>();
+        }
+        if (data.contains("scales") && data["scales"].is_array()) {
+            for (const auto& scaleData : data["scales"]) {
+                scales.emplace_back(PsTimelineScale(scaleData));
+            }
+        }
+    }
+};
+
+// Response structures
+struct PsTimelineScaleVo {
+    std::string timelineId;
+    PsScaleParams scale;
+};
+
+struct PsSceneScaleVo {
+    std::string sceneUuid;
+    std::vector<PsTimelineScaleVo> scales;
+};
 
 } // namespace pjson
 

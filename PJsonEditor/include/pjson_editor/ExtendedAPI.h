@@ -108,6 +108,7 @@ public:
     ApiResult setMainStoryOrder(const SetMainStoryOrderReqBody& reqBody);
     ApiResult changeFitType(const ChangeFitTypeReqBody& reqBody);
     ApiResult changeScaleToAll(const UpdateProjectScaleReqBody& reqBody);
+    ApiResult setSceneScale(const PsSceneScaleReqBody& reqBody);
 
     ApiResult addBgm(const ProjectBgmAddReqBody& reqBody);
         ApiResult deleteBgm(const ProjectBgmDeleteReqBody& reqBody);

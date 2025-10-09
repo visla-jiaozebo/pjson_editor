@@ -2202,6 +2202,135 @@ ApiResult ExtendedControllerAPI::changeScaleToAll(const UpdateProjectScaleReqBod
     return ApiResult::success(patch);
 }
 
+ApiResult ExtendedControllerAPI::setSceneScale(const PsSceneScaleReqBody& reqBody) {
+    if (!dataStore) {
+        return ApiResult::error(ApiMessage::DATASTORE_NOT_INITIALIZED);
+    }
+    
+    // Step 1: Validate parameters (following Java backend logic)
+    if (reqBody.scales.empty()) {
+        return ApiResult::error(ApiMessage::ILLEGAL_PARAMS);
+    }
+    
+    // Step 2: Find and validate the scene
+    ExtendedProjectScene* scene = dataStore->findScene(reqBody.sceneUuid);
+    if (!scene) {
+        return ApiResult::error(ApiMessage::PROJECT_VIDEO_SCENE_NOT_FOUND);
+    }
+    
+    nlohmann::json patches = nlohmann::json::array();
+    
+    // Step 3: Update scale for each timeline (following Java backend logic)
+    for (const auto& scaleReq : reqBody.scales) {
+        // Find timeline by UUID in scene's timelines (aRolls + bRolls)
+        ExtendedTimeline* targetTimeline = nullptr;
+        std::string timelinePath;
+        
+        // Search in aRolls
+        for (size_t i = 0; i < scene->aRolls.size(); ++i) {
+            if (scene->aRolls[i].uuid == scaleReq.timelineUuid) {
+                targetTimeline = &scene->aRolls[i];
+                timelinePath = "/scenes/" + reqBody.sceneUuid + "/aRolls/" + std::to_string(i);
+                break;
+            }
+        }
+        
+        // Search in bRolls if not found in aRolls
+        if (!targetTimeline) {
+            for (size_t i = 0; i < scene->bRolls.size(); ++i) {
+                if (scene->bRolls[i].uuid == scaleReq.timelineUuid) {
+                    targetTimeline = &scene->bRolls[i];
+                    timelinePath = "/scenes/" + reqBody.sceneUuid + "/bRolls/" + std::to_string(i);
+                    break;
+                }
+            }
+        }
+        
+        if (targetTimeline) {
+            // Filter out timeline categories that don't support scaling (following Java backend logic)
+            // Skip BACKGROUND_MUSIC, SYNTHETIC_VOICE_OVER, RECORD_VOICE_OVER
+            if (targetTimeline->category == ProjectTimelineCategoryEnum::BACKGROUND_MUSIC ||
+                targetTimeline->category == ProjectTimelineCategoryEnum::SYNTHETIC_VOICE_OVER ||
+                targetTimeline->category == ProjectTimelineCategoryEnum::RECORD_VOICE_OVER) {
+                continue;
+            }
+            
+            // Update timeline with scale parameters
+            // Note: ExtendedTimeline doesn't have scale/coordOffset fields in current structure
+            // For now, we'll store in cropData as a workaround (like Java stores in ProjectTimeline)
+            nlohmann::json scaleData = {
+                {"scale", scaleReq.scale.value}
+            };
+            
+            if (scaleReq.scale.coordOffset.has_value()) {
+                scaleData["coordOffset"] = scaleReq.scale.coordOffset.value();
+            }
+            
+            targetTimeline->cropData = scaleData;
+            
+            // Generate patch for timeline scale update
+            patches.push_back({
+                {"op", "replace"},
+                {"path", timelinePath + "/cropData"},
+                {"value", scaleData}
+            });
+        }
+    }
+    
+    // Step 4: Build response data (following Java backend PsSceneScaleVo structure)
+    nlohmann::json resultData = {
+        {"sceneUuid", reqBody.sceneUuid},
+        {"scales", nlohmann::json::array()}
+    };
+    
+    // Collect all timeline scales for response (following Java backend logic)
+    auto addTimelineScale = [&](const ExtendedTimeline& timeline, const std::string& timelineId) {
+        // Skip timeline categories that don't support scaling
+        if (timeline.category == ProjectTimelineCategoryEnum::BACKGROUND_MUSIC ||
+            timeline.category == ProjectTimelineCategoryEnum::SYNTHETIC_VOICE_OVER ||
+            timeline.category == ProjectTimelineCategoryEnum::RECORD_VOICE_OVER) {
+            return;
+        }
+        
+        nlohmann::json scaleVo = {
+            {"timelineId", timelineId}
+        };
+        
+        // Extract scale data from cropData (our storage workaround)
+        if (timeline.cropData.has_value()) {
+            const auto& cropData = timeline.cropData.value();
+            nlohmann::json scaleBo = {
+                {"value", cropData.contains("scale") ? cropData["scale"].get<double>() : 1.0}
+            };
+            
+            if (cropData.contains("coordOffset")) {
+                scaleBo["coordOffset"] = cropData["coordOffset"];
+            }
+            
+            scaleVo["scale"] = scaleBo;
+        } else {
+            // Default scale
+            scaleVo["scale"] = {
+                {"value", 1.0}
+            };
+        }
+        
+        resultData["scales"].push_back(scaleVo);
+    };
+    
+    // Add aRolls
+    for (const auto& timeline : scene->aRolls) {
+        addTimelineScale(timeline, timeline.uuid);
+    }
+    
+    // Add bRolls
+    for (const auto& timeline : scene->bRolls) {
+        addTimelineScale(timeline, timeline.uuid);
+    }
+    
+    return ApiResult::success(patches, resultData);
+}
+
 // Core business logic implementation - assembleSceneAndTimelines
 ExtendedProjectScene ExtendedControllerAPI::assembleSceneAndTimelines(const ExtendedProjectScene& scene, 
                                                                       const std::vector<ExtendedTimeline>& timelines,
