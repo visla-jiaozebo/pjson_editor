@@ -482,6 +482,13 @@ ApiResult ExtendedControllerAPI::addScene(const ExtendedProjectSceneAddReqBody& 
     return ApiResult::success(patches, resultData);
 }
 
+void ExtendedControllerAPI::addSceneFeedServerResp(const nlohmann::json &resp)
+{
+    if (resp["code"] == 0 && resp.contains("data") && resp["data"].contains("scene")) {
+        dataStore->addScene(ExtendedProjectScene(resp["data"]["scene"]));
+    }
+}
+
 ApiResult ExtendedControllerAPI::renameScene(const ExtendedProjectSceneRenameReqBody& reqBody) {
     if (!dataStore) {
         return ApiResult::error(ApiMessage::DATASTORE_NOT_INITIALIZED);

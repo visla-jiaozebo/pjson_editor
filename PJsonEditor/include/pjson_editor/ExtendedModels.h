@@ -101,6 +101,13 @@ struct VoiceOver {
 
 // Transcript structures
 struct TranscriptItem {
+    TranscriptItem() = default;
+    TranscriptItem(const nlohmann::json& item) {
+        if (item.contains("start_time")) startMs = item["start_time"];
+        if (item.contains("end_time")) endMs = item["end_time"];
+        if (item.contains("content")) text = item["content"];
+        if (item.contains("speaker")) speaker = item["speaker"];
+    }
     int startMs{0};
     int endMs{0};
     std::string text;
@@ -109,6 +116,21 @@ struct TranscriptItem {
 };
 
 struct SceneTranscript {
+    SceneTranscript() = default;
+    SceneTranscript(const nlohmann::json& _data) {
+        if (_data.contains("text")) text = _data["text"];
+        if (_data.contains("items") && _data["items"].is_array()) {
+            for (const auto& item : _data["items"]) {
+                TranscriptItem ti(item);
+                items.push_back(ti);
+            }
+        }
+        if (_data.contains("originalKeywords") && _data["originalKeywords"].is_array()) {
+            originalKeywords = _data["originalKeywords"].get<std::vector<std::string>>();
+        }
+        if (_data.contains("modified")) modified = _data["modified"];
+        if (_data.contains("duration")) duration = _data["duration"];
+    }
     std::string text;
     std::vector<TranscriptItem> items;
     std::vector<std::string> originalKeywords;
@@ -220,6 +242,22 @@ struct SyntheticVoiceMetadata {
 
 // Enhanced scene structure
 struct ExtendedProjectScene {
+    ExtendedProjectScene() = default;
+    ExtendedProjectScene(const nlohmann::json &_data) {
+        if (_data.contains("sceneUuid")) uuid = _data["sceneUuid"];
+        if (_data.contains("projectUuid")) projectUuid = _data["projectUuid"];
+        if (_data.contains("name")) name = _data["name"];
+        if (_data.contains("sceneType")) sceneType = _data["sceneType"].get<SceneTypeEnum>();
+        if (_data.contains("duration")) duration = _data["duration"];
+        if (_data.contains("timeOffsetInProject")) timeOffsetInProject = _data["timeOffsetInProject"];
+        if (_data.contains("pauseTime")) pauseTime = _data["pauseTime"];
+        if (_data.contains("audioFlag")) audioFlag = _data["audioFlag"];
+        
+        // Transcript
+        if (_data.contains("transcript") && !_data["transcript"].is_null()) {
+            transcript = SceneTranscript(_data["transcript"]);
+        }
+    };
     std::string uuid;
     std::string projectUuid;
     std::string name;

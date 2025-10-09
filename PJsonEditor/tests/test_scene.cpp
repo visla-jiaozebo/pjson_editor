@@ -14,7 +14,6 @@ public:
   api_request_client apiClient;
   const std::string PROPJECT_UUID = "1358840261077225472";
   std::string sceneUuid;
-  std::string localSceneUuid;
   std::shared_ptr<pjson::PJsonEditor> executor;
   TestSceneContext() {
 
@@ -52,20 +51,24 @@ void check_scene_name(const nlohmann::json &resp, const std::string &name) {
 TEST_CASE_FIXTURE(TestSceneContext, "/v3/project/{projectUuid}/scene/") {
   { //"scene/add"
     nlohmann::json requestBody{{"addPosition", 1}, {"duration", 10000}};
+    nlohmann::json serverResponse;
     {
-      nlohmann::json serverResponse = apiClient.post(
+      serverResponse = apiClient.post(
           "/v3/project/" + PROPJECT_UUID + "/scene/add", requestBody);
       CHECK(serverResponse["code"] == 0);
       sceneUuid = serverResponse["data"]["sceneUuid"].get<std::string>();
       check_scene_name(serverResponse, "New scene");
     }
     {
-      auto r =
-          executor->call({.method = "POST",
-                          .url = "/v3/project/" + PROPJECT_UUID + "/scene/add",
-                          .body = requestBody});
-      check_scene_name(r.body, "New scene");
-      localSceneUuid = r.body["data"]["sceneUuid"].get<std::string>();
+      auto r = executor->call(std::make_shared<Request>(
+          Request{.method = "POST",
+                  .url = "/v3/project/" + PROPJECT_UUID + "/scene/add",
+                  .body = requestBody}));
+      CHECK(r->status_code == 404);
+      executor->feedServerResponse(r, serverResponse);
+      // list again to update local data store
+      // executor->update(
+      //     apiClient.get("/v3/project/" + PROPJECT_UUID + "/scene/list"));
     }
   }
   {
@@ -74,124 +77,149 @@ TEST_CASE_FIXTURE(TestSceneContext, "/v3/project/{projectUuid}/scene/") {
                                {"name", "Renamed Scene" + sceneUuid}};
     nlohmann::json serverResponse = apiClient.post(
         "/v3/project/" + PROPJECT_UUID + "/scene/rename", requestBody, "PUT");
-              requestBody["sceneUuid"] = localSceneUuid;
-      auto r = executor->call(
-          {.method = "PUT",
-           .url = "/v3/project/" + PROPJECT_UUID + "/scene/rename",
-           .body = requestBody});
-           auto &localResponse = r.body;
-           CHECK(serverResponse["data"]["scene"]["name"] == localResponse["data"]["scene"]["name"]);
-           CHECK(serverResponse["data"]["scene"]["name"] == requestBody["name"]);
+    auto r = executor->call(std::make_shared<Request>(
+        Request{.method = "PUT",
+                .url = "/v3/project/" + PROPJECT_UUID + "/scene/rename",
+                .body = requestBody}));
+    auto &localResponse = r->body;
+    CHECK(serverResponse["data"]["scene"]["name"] ==
+          localResponse["data"]["scene"]["name"]);
+    CHECK(serverResponse["data"]["scene"]["name"] == requestBody["name"]);
   }
   {
     // "scene/split"
-    nlohmann::json requestBody{
-        {"sceneUuid", sceneUuid},
-        {"splitTime", 5000}}; // split at 5 seconds
+    nlohmann::json requestBody{{"sceneUuid", sceneUuid},
+                               {"splitTime", 5000}}; // split at 5 seconds
     std::string splitedSceneUuid[2];
     std::string localSplitedSceneUuid[2];
     {
       nlohmann::json serverResponse = apiClient.post(
           "/v3/project/" + PROPJECT_UUID + "/scene/split", requestBody, "PUT");
 
-      requestBody["sceneUuid"] = localSceneUuid;
-      auto r = executor->call(
-          {.method = "PUT",
-           .url = "/v3/project/" + PROPJECT_UUID + "/scene/split",
-           .body = requestBody});
-      auto &localResponse = r.body;
+      auto r = executor->call(std::make_shared<Request>(
+          Request{.method = "PUT",
+                  .url = "/v3/project/" + PROPJECT_UUID + "/scene/split",
+                  .body = requestBody}));
+      auto &localResponse = r->body;
       CHECK(serverResponse["code"] == localResponse["code"]);
-      CHECK(serverResponse["data"].is_array() == localResponse["data"].is_array());
+      CHECK(serverResponse["data"].is_array() ==
+            localResponse["data"].is_array());
       CHECK(serverResponse["data"].size() == localResponse["data"].size());
-      splitedSceneUuid[0] = serverResponse["data"][0]["sceneUuid"].get<std::string>();
-      splitedSceneUuid[1] = serverResponse["data"][1]["sceneUuid"].get<std::string>();
+      splitedSceneUuid[0] =
+          serverResponse["data"][0]["sceneUuid"].get<std::string>();
+      splitedSceneUuid[1] =
+          serverResponse["data"][1]["sceneUuid"].get<std::string>();
 
-      localSplitedSceneUuid[0] = localResponse["data"][0]["sceneUuid"].get<std::string>();
-      localSplitedSceneUuid[1] = localResponse["data"][1]["sceneUuid"].get<std::string>();
+      localSplitedSceneUuid[0] =
+          localResponse["data"][0]["sceneUuid"].get<std::string>();
+      localSplitedSceneUuid[1] =
+          localResponse["data"][1]["sceneUuid"].get<std::string>();
     }
     {
       // set-time
       nlohmann::json requestBody{
           {"sceneUuid", splitedSceneUuid[0]},
-          {"duration", 8000}}; // change the duration of the first scene to 8 seconds
-      nlohmann::json serverResponse = apiClient.post(
-          "/v3/project/" + PROPJECT_UUID + "/scene/set-time", requestBody, "PUT");
+          {"duration",
+           8000}}; // change the duration of the first scene to 8 seconds
+      nlohmann::json serverResponse =
+          apiClient.post("/v3/project/" + PROPJECT_UUID + "/scene/set-time",
+                         requestBody, "PUT");
       requestBody["sceneUuid"] = localSplitedSceneUuid[0];
-      auto r = executor->call(
-          {.method = "PUT",
-           .url = "/v3/project/" + PROPJECT_UUID + "/scene/set-time",
-           .body = requestBody});
-      auto &localResponse = r.body;
+      auto r = executor->call(std::make_shared<Request>(
+          Request{.method = "PUT",
+                  .url = "/v3/project/" + PROPJECT_UUID + "/scene/set-time",
+                  .body = requestBody}));
+      auto &localResponse = r->body;
       CHECK(serverResponse["code"] == localResponse["code"]);
     }
     {
       // scene/move
       nlohmann::json requestBody{
           {"sceneUuid", splitedSceneUuid[0]},
-          {"afterSceneUuid", splitedSceneUuid[1]}}; // move the first scene after the second
+          {"afterSceneUuid",
+           splitedSceneUuid[1]}}; // move the first scene after the second
       nlohmann::json serverResponse = apiClient.post(
           "/v3/project/" + PROPJECT_UUID + "/scene/move", requestBody, "PUT");
       requestBody["sceneUuid"] = localSplitedSceneUuid[0];
       requestBody["afterSceneUuid"] = localSplitedSceneUuid[1];
-      auto r = executor->call(
-          {.method = "PUT",
-           .url = "/v3/project/" + PROPJECT_UUID + "/scene/move",
-           .body = requestBody});
-      auto &localResponse = r.body;
+      auto r = executor->call(std::make_shared<Request>(
+          Request{.method = "PUT",
+                  .url = "/v3/project/" + PROPJECT_UUID + "/scene/move",
+                  .body = requestBody}));
+      auto &localResponse = r->body;
       CHECK(serverResponse["code"] == localResponse["code"]);
     }
     {
       // scene/merge
       nlohmann::json requestBody{
-          {"sceneUuids", {splitedSceneUuid[0], splitedSceneUuid[1]}} // merge the two scenes back
+          {"sceneUuids",
+           {splitedSceneUuid[0],
+            splitedSceneUuid[1]}} // merge the two scenes back
       };
       nlohmann::json serverResponse = apiClient.post(
           "/v3/project/" + PROPJECT_UUID + "/scene/merge", requestBody, "PUT");
-      requestBody["sceneUuids"] = {localSplitedSceneUuid[0], localSplitedSceneUuid[1]};
-      auto r = executor->call(
-          {.method = "PUT",
-           .url = "/v3/project/" + PROPJECT_UUID + "/scene/merge",
-           .body = requestBody});
-      auto &localResponse = r.body;
+      requestBody["sceneUuids"] = {localSplitedSceneUuid[0],
+                                   localSplitedSceneUuid[1]};
+      auto r = executor->call(std::make_shared<Request>(
+          Request{.method = "PUT",
+                  .url = "/v3/project/" + PROPJECT_UUID + "/scene/merge",
+                  .body = requestBody}));
+      auto &localResponse = r->body;
       CHECK(serverResponse["code"] == localResponse["code"]);
       sceneUuid = serverResponse["data"]["sceneUuid"].get<std::string>();
-      localSceneUuid = localResponse["data"]["sceneUuid"].get<std::string>();
-      assert(sceneUuid != "" && localSceneUuid != "" && "merge failed");
     }
-    if (0)
     {
+      // add footage
+      // {"sceneUuid":"1422511945931645372","bRoll":{"startTime":0,"endTime":10000,"entityType":"pexels","entityUuid":"7000000600003169","timeOffsetInProject":3600}}
+      nlohmann::json requestBody{{"sceneUuid", sceneUuid},
+                                 {"bRoll",
+                                  {{"startTime", 0},
+                                   {"endTime", 10000},
+                                   {"entityType", "pexels"},
+                                   {"entityUuid", "7000000600003169"},
+                                   {"timeOffsetInProject", 3600}}}};
+      nlohmann::json serverResponse =
+          apiClient.post("/v3/project/" + PROPJECT_UUID + "/scene/add-footage",
+                         requestBody, "PUT");
+      auto r = executor->call(std::make_shared<Request>(
+          Request{.method = "PUT",
+                  .url = "/v3/project/" + PROPJECT_UUID + "/scene/add-footage",
+                  .body = requestBody}));
+      auto &localResponse = r->body;
+      CHECK(r->status_code == 404);
+      executor->feedServerResponse(r, serverResponse);
+      executor->update(apiClient.get("/v3/project/" + PROPJECT_UUID + "/scene/list"));
+    }
+    if (0) {
       // "scene/scale"
       {
-//   "scales": [
-//     {
-//       "scale": {
-//         "coordOffset": [
-//           0.1
-//         ],
-//         "value": 0.1
-//       },
-//       "timelineUuid": 996654321
-//     }
-//   ],
-//   "sceneUuid": "string"
-// }
+        //   "scales": [
+        //     {
+        //       "scale": {
+        //         "coordOffset": [
+        //           0.1
+        //         ],
+        //         "value": 0.1
+        //       },
+        //       "timelineUuid": 996654321
+        //     }
+        //   ],
+        //   "sceneUuid": "string"
+        // }
         nlohmann::json requestBody{
             {"sceneUuid", sceneUuid},
-            {"scales", {
-                {
-                    {"scale", {{"coordOffset", {0.1}}, {"value", 0.8}}}},
-                    {"timelineUuid", 996654321}
-                }
-            }};
+            {"scales",
+             {{{"scale", {{"coordOffset", {0.1}}, {"value", 0.8}}}},
+              {"timelineUuid", 996654321}}}};
 
-        nlohmann::json serverResponse = apiClient.post(
-            "/v3/project/" + PROPJECT_UUID + "/scene/scale", requestBody, "PUT");
-        requestBody["sceneUuid"] = localSceneUuid;
-        auto r = executor->call(
-            {.method = "PUT",
-             .url = "/v3/project/" + PROPJECT_UUID + "/scene/scale",
-             .body = requestBody});
-        auto &localResponse = r.body;
+        nlohmann::json serverResponse =
+            apiClient.post("/v3/project/" + PROPJECT_UUID + "/scene/scale",
+                           requestBody, "PUT");
+        auto r = executor->call(std::make_shared<Request>(
+            Request{.method = "PUT",
+                    .url = "/v3/project/" + PROPJECT_UUID + "/scene/scale",
+                    .body = requestBody}));
+        auto &localResponse = r->body;
         CHECK(serverResponse["code"] == localResponse["code"]);
       }
     }
@@ -200,9 +228,10 @@ TEST_CASE_FIXTURE(TestSceneContext, "/v3/project/{projectUuid}/scene/") {
     // "scene/delete"
     apiClient.del("/v3/project/" + PROPJECT_UUID + "/scene/delete",
                   {{"sceneUuid", sceneUuid}});
-    executor->call({.method = "DELETE",
-                    .url = "/v3/project/" + PROPJECT_UUID + "/scene/delete",
-                    .body = {{"sceneUuid", localSceneUuid}}});
+    executor->call(std::make_shared<Request>(
+        Request{.method = "DELETE",
+                .url = "/v3/project/" + PROPJECT_UUID + "/scene/delete",
+                .body = {{"sceneUuid", sceneUuid}}}));
   }
   // Local ExtendedAPI comparison
 }

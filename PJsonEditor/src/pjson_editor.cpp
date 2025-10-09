@@ -1,39 +1,63 @@
 #include <cassert>
+#include <filesystem>
+#include <fstream>
 #include <functional>
 #include <iostream>
-#include <fstream>
-#include <filesystem>
+#include <memory>
 #include <nlohmann/json.hpp>
 #include <pjson_editor/ApiMessage.h>
 #include <pjson_editor/ExtendedAPI.h>
 #include <pjson_editor/ExtendedModels.h>
 #include <pjson_editor/pjson_editor.hpp>
+#include <random>
 #include <regex>
+#include <sstream>
+#include <utility>
 #include <vector>
 
 namespace pjson {
+namespace fs = std::filesystem;
+static fs::path create_temp_file(const std::string &prefix = "tmp") {
+  fs::path temp_dir = fs::temp_directory_path();
+  std::random_device rd;
+  std::mt19937 gen(rd());
+  std::uniform_int_distribution<> dis(0, 999999999);
 
+  fs::path temp_file;
+  do {
+    std::ostringstream oss;
+    oss << prefix << "_" << dis(gen);
+    temp_file = temp_dir / oss.str();
+  } while (fs::exists(temp_file)); // ensure it doesn’t exist yet
+
+  // create the file
+  std::ofstream(temp_file).close();
+  return temp_file;
+}
 // Route handler function signature
 using RouteHandler =
-    std::function<Response(ExtendedControllerAPI *, const Request &)>;
+    std::function<resp_ptr(ExtendedControllerAPI *, const Request &)>;
+using FeedServerRespHandler =
+    std::function<void(ExtendedControllerAPI *, const nlohmann::json &)>;
 
 // Route structure
 struct Route {
   std::regex pattern;
   std::string method;
   RouteHandler handler;
+  FeedServerRespHandler feedHandler{nullptr};
 };
 
 // Forward declarations
-Response createSuccessResponse(ApiResult &&result);
-Response createErrorResponse(int statusCode, const std::string &message);
+resp_ptr createSuccessResponse(ApiResult &&result);
+resp_ptr createErrorResponse(int statusCode, const std::string &message);
 
 // Template function to create handlers for different request body types
 template <typename ReqBodyType>
 RouteHandler
 createHandler(ApiResult (ExtendedControllerAPI::*method)(const ReqBodyType &)) {
   return [method](ExtendedControllerAPI *controller,
-                  const Request &req) -> Response {
+                  const Request &req) -> resp_ptr {
     try {
       ReqBodyType reqBody(req.body);
       ApiResult result = (controller->*method)(reqBody);
@@ -47,15 +71,22 @@ createHandler(ApiResult (ExtendedControllerAPI::*method)(const ReqBodyType &)) {
 
 // Static route table with member function pointers
 static std::vector<Route> routes = {
-    // POST routes using member function pointers
-    {std::regex(R"(/v3/project/[^/]+/scene/add)"), "POST",
-     createHandler(&ExtendedControllerAPI::addScene)},
+// POST routes using member function pointers
+
+    Route{std::regex(R"(/v3/project/[^/]+/scene/add)"), "POST",
+          // createHandler(&ExtendedControllerAPI::addScene),
+          nullptr, &ExtendedControllerAPI::addSceneFeedServerResp},
+
     {std::regex(R"(/v3/project/[^/]+/scene/rename)"), "PUT",
      createHandler(&ExtendedControllerAPI::renameScene)},
     {std::regex(R"(/v3/project/[^/]+/scene/move)"), "PUT",
      createHandler(&ExtendedControllerAPI::moveScene)},
     {std::regex(R"(/v3/project/[^/]+/scene/set-time)"), "PUT",
      createHandler(&ExtendedControllerAPI::setSceneTime)},
+
+    {std::regex(R"(/v3/project/[^/]+/scene/add-footage)"), "PUT",
+     nullptr},
+
     {std::regex(R"(/v3/project/[^/]+/scene/cut)"), "POST",
      createHandler(&ExtendedControllerAPI::cutScene)},
     {std::regex(R"(/v3/project/[^/]+/scene/split)"), "PUT",
@@ -76,8 +107,12 @@ static std::vector<Route> routes = {
 };
 
 PJsonEditor::PJsonEditor(const nlohmann::json &scene_list_resp) {
+  update(scene_list_resp);
+}
+
+void PJsonEditor::update(const nlohmann::json &list_resp) {
   // Initialize with config if needed
-  auto pjson = std::make_shared<ExtendedProjectAndScenesVo>(scene_list_resp);
+  auto pjson = std::make_shared<ExtendedProjectAndScenesVo>(list_resp);
   dataStore = std::make_unique<ExtendedDataStore>();
   dataStore->init(pjson);
   controller = std::make_unique<ExtendedControllerAPI>();
@@ -88,85 +123,107 @@ PJsonEditor::PJsonEditor(const nlohmann::json &scene_list_resp) {
 }
 
 // Route request using the route table
-Response routeRequest(ExtendedControllerAPI *controller, const Request &req) {
+resp_ptr routeRequest(ExtendedControllerAPI *controller, const Request &req) {
   std::cout << req.method << " " << req.url << std::endl;
 
   // Find matching route
   for (const auto &route : routes) {
     if (route.method == req.method &&
         std::regex_match(req.url, route.pattern)) {
+      if (!route.handler) {
+        break;
+      }
       return route.handler(controller, req);
     }
   }
-  assert(false && "route not implement");
-  // No matching route found
   return createErrorResponse(404, "Endpoint not found: " + req.method + " " +
                                       req.url);
 }
 
-Response PJsonEditor::call(Request req) {
-  #ifndef NDEBUG
+resp_ptr PJsonEditor::call(req_ptr req) {
+#ifndef NDEBUG
   if (!dump_file_path.empty()) {
     std::ofstream dump_file(dump_file_path.c_str(), std::ios::app);
-    dump_file << "Request: " << req.method << " " << req.url << "\n";
-    dump_file << "Body: " << req.body.dump(2) << "\n";
+    dump_file << "Request: " << req->method << " " << req->url << "\n";
+    dump_file << "Body: " << req->body.dump(2) << "\n";
     dump_file << "------------------------\n";
     dump_file.close();
   }
-  #endif
-  auto r = routeRequest(controller.get(), req);
-  #ifndef NDEBUG
+#endif
+  assert(req->_requestId.empty() && "Request ID should be empty");
+  req->_requestId = std::to_string(++request_counter);
+  auto r = routeRequest(controller.get(), *req);
+  r->_requestId = req->_requestId;
+  requests[req->_requestId] = std::make_pair(req, r);
+#ifndef NDEBUG
   if (!dump_file_path.empty()) {
     std::ofstream dump_file(dump_file_path.c_str(), std::ios::app);
-    dump_file << "Response: " << r.status_code << "\n";
-    auto body{r.body.dump(2)};
+    dump_file << "Response: " << r->status_code << "\n";
+    auto body{r->body.dump(2)};
     if (body.size() > 256) {
-      body = body.substr(0, 256) + "...(truncated)";
+      std::filesystem::path p(create_temp_file());
+      std::ofstream body_file(p);
+      body_file << body;
+      body_file.close();
+      body = p.string();
     }
     dump_file << "Body: " << body << "\n";
     dump_file << "========================\n";
     dump_file.close();
   }
-  #endif
+#endif
   return r;
 }
 
-void PJsonEditor::dump_file(const std::string &path)
-{
-  dump_file_path = path;
+void PJsonEditor::feedServerResponse(resp_ptr r, const nlohmann::json &resp) {
+  assert(!r->_requestId.empty() && "Request ID should not be empty");
+  assert(requests.find(r->_requestId) != requests.end() &&
+         "Request ID not found");
+  auto req = requests[r->_requestId].first;
+  for (const auto &route : routes) {
+    if (route.method == req->method &&
+        std::regex_match(req->url, route.pattern)) {
+      if (route.feedHandler) {
+        route.feedHandler(controller.get(), resp);
+      }
+      break;
+    }
+  }
 }
 
+void PJsonEditor::dump_file(const std::string &path) { dump_file_path = path; }
+
 // Helper function to create success response
-Response createSuccessResponse(ApiResult &&result) {
-  Response resp;
-  resp.status_code = 200;
-  resp.headers["Content-Type"] = "application/json";
+resp_ptr createSuccessResponse(ApiResult &&result) {
+  resp_ptr resp = std::make_shared<Response>();
+  resp->status_code = 200;
+  resp->headers["Content-Type"] = "application/json";
 
   if (result.isSuccess()) {
-    resp.body["code"] = 0;
-    resp.body["msg"] = "success";
+    resp->body["code"] = 0;
+    resp->body["msg"] = "success";
     if (!result.data.empty()) {
-      resp.body["data"] = std::move(result.data);
+      resp->body["data"] = std::move(result.data);
     }
   } else {
-    resp.status_code = 400;
-    resp.body["code"] = -1;
-    resp.body["msg"] = ApiMessageHelper::getMessage(result.apiMessage);
+    resp->status_code = 400;
+    resp->body["code"] = -1;
+    resp->body["msg"] = ApiMessageHelper::getMessage(result.apiMessage);
   }
   return resp;
 }
 
 // Helper function to create error response
-Response createErrorResponse(int statusCode, const std::string &message) {
-  Response resp;
-  resp.status_code = statusCode;
-  resp.headers["Content-Type"] = "application/json";
+resp_ptr createErrorResponse(int statusCode, const std::string &message) {
+  resp_ptr resp = std::make_shared<Response>();
+  resp->status_code = statusCode;
+  resp->headers["Content-Type"] = "application/json";
 
   nlohmann::json responseJson;
   responseJson["code"] = -1;
   responseJson["msg"] = message;
 
-  resp.body = responseJson.dump();
+  resp->body = responseJson.dump();
   return resp;
 }
 

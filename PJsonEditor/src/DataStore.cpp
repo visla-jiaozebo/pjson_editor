@@ -25,6 +25,11 @@ ExtendedProjectScene* ExtendedDataStore::findScene(const std::string& sceneUuid)
     return nullptr;
 }
 
+void ExtendedDataStore::addScene(ExtendedProjectScene&& scene) {
+    project->scenes.push_back(std::move(scene));
+    // recomputeOffsets();
+}
+
 void ExtendedDataStore::recomputeOffsets() {
     int totalOffset = 0;
     for (auto& scene : project->scenes) {

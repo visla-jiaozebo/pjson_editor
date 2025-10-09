@@ -80,6 +80,7 @@ public:
     const ExtendedProjectAndScenesVo& getCurrentProjectData() const;
 
         ApiResult addScene(const ExtendedProjectSceneAddReqBody& reqBody);
+    void addSceneFeedServerResp(const nlohmann::json &resp);
         ApiResult renameScene(const ExtendedProjectSceneRenameReqBody& reqBody);
         ApiResult moveScene(const ExtendedProjectSceneMoveReqBody& reqBody);
     ApiResult setSceneTime(const ExtendedProjectSceneSetTimeReqBody& reqBody);
@@ -140,6 +141,7 @@ public:
     // Method to get current project data for external comparison
     const ExtendedProjectAndScenesVo& getCurrentProjectData() const { return *project; }
     ExtendedProjectScene* findScene(const std::string& sceneUuid);
+    void addScene(ExtendedProjectScene&& scene);
     void recomputeOffsets();
     // void insertScene(const ExtendedProjectScene& scene, int index = -1);
     // bool removeScene(const std::string& sceneUuid);
