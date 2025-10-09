@@ -25,9 +25,12 @@ public:
   Response call(Request req);
   virtual ~PJsonEditor() = default;
 
+  void dump_file(const std::string &path);
+
 private:
   std::unique_ptr<ExtendedControllerAPI> controller;
   std::unique_ptr<ExtendedDataStore> dataStore;
+  std::string dump_file_path;
 };
 
 } // namespace pjson

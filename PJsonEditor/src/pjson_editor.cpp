@@ -1,6 +1,8 @@
 #include <cassert>
 #include <functional>
 #include <iostream>
+#include <fstream>
+#include <filesystem>
 #include <nlohmann/json.hpp>
 #include <pjson_editor/ApiMessage.h>
 #include <pjson_editor/ExtendedAPI.h>
@@ -50,9 +52,9 @@ static std::vector<Route> routes = {
      createHandler(&ExtendedControllerAPI::addScene)},
     {std::regex(R"(/v3/project/[^/]+/scene/rename)"), "PUT",
      createHandler(&ExtendedControllerAPI::renameScene)},
-    {std::regex(R"(/v3/project/[^/]+/scene/move)"), "POST",
+    {std::regex(R"(/v3/project/[^/]+/scene/move)"), "PUT",
      createHandler(&ExtendedControllerAPI::moveScene)},
-    {std::regex(R"(/v3/project/[^/]+/scene/time/set)"), "POST",
+    {std::regex(R"(/v3/project/[^/]+/scene/set-time)"), "PUT",
      createHandler(&ExtendedControllerAPI::setSceneTime)},
     {std::regex(R"(/v3/project/[^/]+/scene/cut)"), "POST",
      createHandler(&ExtendedControllerAPI::cutScene)},
@@ -68,6 +70,9 @@ static std::vector<Route> routes = {
      createHandler(&ExtendedControllerAPI::setSceneTransition)},
     {std::regex(R"(/v3/project/[^/]+/scene/[^/]+/script/edit)"), "POST",
      createHandler(&ExtendedControllerAPI::editScript)},
+    //  scene/scale from docs/API-snapshot.md
+    // {std::regex(R"(/v3/project/[^/]+/scene/scale)"), "PUT",
+    //  createHandler(&ExtendedControllerAPI::scaleScene)},
 };
 
 PJsonEditor::PJsonEditor(const nlohmann::json &scene_list_resp) {
@@ -100,7 +105,35 @@ Response routeRequest(ExtendedControllerAPI *controller, const Request &req) {
 }
 
 Response PJsonEditor::call(Request req) {
-  return routeRequest(controller.get(), req);
+  #ifndef NDEBUG
+  if (!dump_file_path.empty()) {
+    std::ofstream dump_file(dump_file_path.c_str(), std::ios::app);
+    dump_file << "Request: " << req.method << " " << req.url << "\n";
+    dump_file << "Body: " << req.body.dump(2) << "\n";
+    dump_file << "------------------------\n";
+    dump_file.close();
+  }
+  #endif
+  auto r = routeRequest(controller.get(), req);
+  #ifndef NDEBUG
+  if (!dump_file_path.empty()) {
+    std::ofstream dump_file(dump_file_path.c_str(), std::ios::app);
+    dump_file << "Response: " << r.status_code << "\n";
+    auto body{r.body.dump(2)};
+    if (body.size() > 256) {
+      body = body.substr(0, 256) + "...(truncated)";
+    }
+    dump_file << "Body: " << body << "\n";
+    dump_file << "========================\n";
+    dump_file.close();
+  }
+  #endif
+  return r;
+}
+
+void PJsonEditor::dump_file(const std::string &path)
+{
+  dump_file_path = path;
 }
 
 // Helper function to create success response
