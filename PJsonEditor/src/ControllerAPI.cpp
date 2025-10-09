@@ -1623,37 +1623,57 @@ ApiResult ExtendedControllerAPI::setSceneTransition(const ProjectSceneTransition
 }
 
 // Tier 1 high-priority API implementations
+//---/v3/project/{projectUuid}/scene/add-footage
 ApiResult ExtendedControllerAPI::addFootage(const ProjectSceneFootageAddReqBody& reqBody) {
     if (!dataStore) {
         return ApiResult::error(ApiMessage::DATASTORE_NOT_INITIALIZED);
     }
     
-    // Find target scene
-    ExtendedProjectScene* scene = dataStore->findScene(reqBody.sceneUuid);
-    if (!scene) {
+    // Step 1: Find and validate the scene (following Java backend logic: findAndAssertScene)
+    ExtendedProjectScene* matchedScene = dataStore->findScene(reqBody.sceneUuid);
+    if (!matchedScene) {
         return ApiResult::error(ApiMessage::PROJECT_VIDEO_SCENE_NOT_FOUND);
     }
     
-    // Filter intro/outro scenes (following Java backend logic)
-    if (scene->sceneType == SceneTypeEnum::INTRO || scene->sceneType == SceneTypeEnum::OUTRO) {
+    // Step 2: Filter intro/outro scenes (following Java backend logic: filterIntroOutroScene)
+    if (matchedScene->sceneType == SceneTypeEnum::INTRO || matchedScene->sceneType == SceneTypeEnum::OUTRO) {
         return ApiResult::error(ApiMessage::ACTION_DENIED);
     }
     
-    // Check if this footage overlaps with any existing footage (following Java backend logic)
-    // Get existing timelines in the scene
-    std::vector<ExtendedTimeline> footageTimelines;
-    std::vector<ExtendedTimeline> voiceOverLines;
+    // Step 3: Get the bRoll data from request body (matching Java structure)
+    const SceneRollV2& bRoll = reqBody.bRoll;
     
-    // Collect footage timelines (bRolls)
-    for (const auto& timeline : scene->bRolls) {
-        if (timeline.category == ProjectTimelineCategoryEnum::FOOTAGE ||
-            timeline.category == ProjectTimelineCategoryEnum::BROLL) {
-            footageTimelines.push_back(timeline);
-        }
+    // Step 4: Create new timeline for footage (following Java backend: ProjectTimeline.buildDefaultBrollTimeline)
+    ExtendedTimeline newBRoll;
+    newBRoll.uuid = genUuid();
+    newBRoll.sceneUuid = reqBody.sceneUuid;
+    newBRoll.assetUuid = bRoll.entityUuid;
+    newBRoll.category = ProjectTimelineCategoryEnum::FOOTAGE;
+    
+    // Step 5: Set time offsets (following Java backend logic)
+    if (bRoll.timeOffsetInProject.has_value()) {
+        newBRoll.timeOffsetInProject = bRoll.timeOffsetInProject.value();
+    } else {
+        newBRoll.timeOffsetInProject = matchedScene->timeOffsetInProject;
+    }
+    newBRoll.timeOffsetInScene = newBRoll.timeOffsetInProject - matchedScene->timeOffsetInProject;
+    
+    // Step 6: Set start and end times (following Java backend logic)
+    newBRoll.startTime = bRoll.startTime.has_value() ? bRoll.startTime.value() : 0;
+    
+    // Calculate end time based on Java backend logic
+    int endTime = 0;
+    if (bRoll.endTime.has_value()) {
+        endTime = bRoll.endTime.value();
+    } else {
+        // Default: startTime + scene duration
+        endTime = newBRoll.startTime + matchedScene->duration;
     }
     
-    // Collect voice over timelines (aRolls and voiceOvers)
-    for (const auto& timeline : scene->aRolls) {
+    // Apply video creation template logic (simplified from Java backend)
+    // Java checks if there are voice over lines to determine end time calculation
+    std::vector<ExtendedTimeline> voiceOverLines;
+    for (const auto& timeline : matchedScene->aRolls) {
         if (timeline.category == ProjectTimelineCategoryEnum::SYNTHETIC_VOICE_OVER ||
             timeline.category == ProjectTimelineCategoryEnum::RECORD_VOICE_OVER ||
             timeline.category == ProjectTimelineCategoryEnum::STORY_AUDIO ||
@@ -1662,112 +1682,60 @@ ApiResult ExtendedControllerAPI::addFootage(const ProjectSceneFootageAddReqBody&
         }
     }
     
-    for (const auto& voiceOver : scene->voiceOvers) {
+    // Convert scene voiceOvers to timeline format for consistency
+    for (const auto& voiceOver : matchedScene->voiceOvers) {
         ExtendedTimeline voTimeline;
         voTimeline.timeOffsetInProject = voiceOver.timeOffsetInProject;
         voTimeline.duration = voiceOver.duration;
         voiceOverLines.push_back(voTimeline);
     }
     
-    // Check for timeline overlaps (simplified overlap check)
-    int newTimeOffset = scene->timeOffsetInProject + reqBody.timeOffsetInScene;
-    int newDuration = reqBody.duration > 0 ? reqBody.duration : scene->duration;
-    
-    for (const auto& existing : footageTimelines) {
-        int existingStart = existing.timeOffsetInProject;
-        int existingEnd = existingStart + existing.duration;
-        int newStart = newTimeOffset;
-        int newEnd = newStart + newDuration;
-        
-        if (!(newEnd <= existingStart || newStart >= existingEnd)) {
-            return ApiResult::error(ApiMessage::ACTION_DENIED);
-        }
-    }
-    
-    // Create new timeline for footage (following Java backend structure)
-    ExtendedTimeline newTimeline;
-    newTimeline.uuid = genUuid();
-    newTimeline.sceneUuid = reqBody.sceneUuid;
-    newTimeline.assetUuid = reqBody.assetUuid;
-    // Category fallback: if later we support different categories from request, apply; for now constant.
-    newTimeline.category = ProjectTimelineCategoryEnum::FOOTAGE;  // Use FOOTAGE like Java backend
-    
-    // Set time offsets
-    newTimeline.timeOffsetInScene = reqBody.timeOffsetInScene;
-    newTimeline.timeOffsetInProject = scene->timeOffsetInProject + reqBody.timeOffsetInScene;
-    
-    // Set start time
-    if (reqBody.startTime.has_value()) {
-        newTimeline.startTime = reqBody.startTime.value();
-    } else {
-        newTimeline.startTime = 0;
-    }
-    
-    // Calculate end time (following Java backend logic)
-    int endTime = 0;
-    if (reqBody.endTime.has_value()) {
-        endTime = reqBody.endTime.value();
-    } else {
-        // Default: startTime + duration or scene duration
-        endTime = newTimeline.startTime + (reqBody.duration > 0 ? reqBody.duration : scene->duration);
-    }
-    
-    // Apply video creation template logic (simplified)
+    // Determine final end time (following Java backend logic)
     if (voiceOverLines.empty()) {
-        newTimeline.endTime = endTime;
+        newBRoll.endTime = endTime;
     } else {
         // If has voice over, limit to scene duration
-        newTimeline.endTime = std::min(endTime, newTimeline.startTime + scene->duration);
+        newBRoll.endTime = std::min(endTime, newBRoll.startTime + matchedScene->duration);
     }
     
-    newTimeline.duration = newTimeline.endTime - newTimeline.startTime;
+    newBRoll.duration = newBRoll.endTime - newBRoll.startTime;
     
-    // Set optional fields
-    if (reqBody.cropData.has_value()) {
-        newTimeline.cropData = reqBody.cropData.value();
+    // Step 7: Set default attributes (following Java backend defaults)
+    newBRoll.volume = 1.0;
+    newBRoll.mute = false;
+    newBRoll.speed = 1.0;
+    
+    // Step 8: Add to scene's bRolls (footage goes to bRolls in Java backend)
+    matchedScene->bRolls.push_back(newBRoll);
+    
+    // Step 9: Also add to project timelines for consistency
+    dataStore->getProject().timelines.push_back(newBRoll);
+    
+    // Step 10: Handle blank scene conversion (following Java backend logic)
+    if (matchedScene->sceneType == SceneTypeEnum::BLANK_SCENE) {
+        matchedScene->sceneType = SceneTypeEnum::DEFAULT;
     }
     
-    // Set default playback / mix attributes (parity defaults)
-    newTimeline.volume = 1.0;        // Full volume
-    newTimeline.mute = false;        // Not muted
-    newTimeline.speed = 1.0;         // Normal speed
-    newTimeline.blendMode = "normal"; // Visual blend mode default
-    // If future fields like opacity or audioFade are added, initialize here.
-    
-    // Add to scene's bRolls (footage goes to bRolls in Java backend)
-    scene->bRolls.push_back(newTimeline);
-    
-    // Also add to project timelines for backward compatibility
-    dataStore->getProject().timelines.push_back(newTimeline);
-    
-    // Handle blank scene conversion (following Java backend logic)
-    if (scene->sceneType == SceneTypeEnum::BLANK_SCENE) {
-        scene->sceneType = SceneTypeEnum::DEFAULT;
-    }
-    
-    // Generate JSON patches
+    // Step 11: Generate JSON patches for client updates
     nlohmann::json patches = nlohmann::json::array();
     patches.push_back({
         {"op", "add"},
         {"path", "/scenes/" + reqBody.sceneUuid + "/bRolls/-"},
         {"value", {
-            {"uuid", newTimeline.uuid},
-            {"assetUuid", newTimeline.assetUuid},
-            {"category", static_cast<int>(newTimeline.category)},
-            {"timeOffsetInScene", newTimeline.timeOffsetInScene},
-            {"timeOffsetInProject", newTimeline.timeOffsetInProject},
-            {"startTime", newTimeline.startTime},
-            {"endTime", newTimeline.endTime},
-            {"duration", newTimeline.duration},
-            {"volume", newTimeline.volume},
-            {"mute", newTimeline.mute},
-            {"speed", newTimeline.speed},
-            {"blendMode", newTimeline.blendMode}
+            {"uuid", newBRoll.uuid},
+            {"assetUuid", newBRoll.assetUuid},
+            {"category", static_cast<int>(newBRoll.category)},
+            {"timeOffsetInScene", newBRoll.timeOffsetInScene},
+            {"timeOffsetInProject", newBRoll.timeOffsetInProject},
+            {"startTime", newBRoll.startTime},
+            {"endTime", newBRoll.endTime},
+            {"duration", newBRoll.duration},
+            {"volume", newBRoll.volume}
         }}
     });
     
-    // Update scene type if needed
-    if (scene->sceneType == SceneTypeEnum::DEFAULT) {
+    // Update scene type if converted from blank scene
+    if (matchedScene->sceneType == SceneTypeEnum::DEFAULT) {
         patches.push_back({
             {"op", "replace"},
             {"path", "/scenes/" + reqBody.sceneUuid + "/sceneType"},
@@ -1775,7 +1743,7 @@ ApiResult ExtendedControllerAPI::addFootage(const ProjectSceneFootageAddReqBody&
         });
     }
     
-    // Create ProjectAndSceneVo equivalent data for API compatibility
+    // Step 12: Final step - assemble scene and timeline(s) into project scene vo (following Java backend)
     nlohmann::json resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
     
     return ApiResult::success(patches, resultData);

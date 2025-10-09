@@ -23,7 +23,31 @@ enum class ProjectTimelineCategoryEnum {
 enum class StatusEnum { ACTIVE, DELETED, DRAFT };
 enum class HighlightTypeEnum { KEYWORDS, SENTENCES };
 enum class HighlightStyleTypeEnum { WORD_HIGHLIGHT, BACKGROUND_HIGHLIGHT };
-enum class EntityTypeEnum { CLIP, PROJECT_ASSET };
+enum class EntityTypeEnum { 
+    UNKNOWN = -1,
+    USER = 0, 
+    CLIP = 1, 
+    FOLDER = 2, 
+    PROJECT = 3, 
+    PROJECT_ASSET = 4,
+    PROJECT_SEQUENCE = 5, 
+    PROJECT_VIDEO = 6, 
+    STOCK_MEDIA = 7,
+    STOCK_AUDIO = 8, 
+    VOICE = 9, 
+    PICTURES = 10, 
+    VISLA_MEDIA = 11,
+    STOCK_MEDIA_PEXELS = 12, 
+    STOCK_MEDIA_STORYBLOCKS = 13, 
+    STOCK_MEDIA_GETTYIMAGES = 14,
+    AGENT_PROJECT = 15, 
+    AGENT_PROJECT_MEDIA = 16, 
+    CUSTOM_VOICE = 17,
+    AVATAR = 18, 
+    AVATAR_LOOK = 19,
+    WORKSPACE = 50, 
+    TEAMSPACE = 51 
+};
 
 // Core timeline with full backend fields
 struct ExtendedTimeline {
@@ -480,24 +504,43 @@ struct ProjectSceneTransitionReqBody {
 };
 
 // Additional Tier 1 request bodies
+// Scene Roll V2 structure to match Java SceneRollV2
+struct SceneRollV2 {
+    SceneRollV2() = default;
+    SceneRollV2(const nlohmann::json &_data) {
+        if (_data.contains("entityType")) entityType = static_cast<EntityTypeEnum>(_data["entityType"]);
+        if (_data.contains("entityUuid")) entityUuid = _data["entityUuid"];
+        if (_data.contains("providerId")) providerId = _data["providerId"];
+        if (_data.contains("timeOffsetInProject")) timeOffsetInProject = _data["timeOffsetInProject"];
+        if (_data.contains("startTime")) startTime = _data["startTime"];
+        if (_data.contains("endTime")) endTime = _data["endTime"];
+    }
+    
+    EntityTypeEnum entityType{EntityTypeEnum::PROJECT_ASSET};
+    std::string entityUuid;
+    std::optional<int> providerId;
+    std::optional<int> timeOffsetInProject;
+    std::optional<int> startTime;
+    std::optional<int> endTime;
+    
+    int getDuration() const {
+        if (!startTime.has_value() || !endTime.has_value()) {
+            return 0;
+        }
+        return endTime.value() - startTime.value();
+    }
+};
+
 struct ProjectSceneFootageAddReqBody {
     ProjectSceneFootageAddReqBody() = default;
     ProjectSceneFootageAddReqBody(const nlohmann::json &_data) {
         if (_data.contains("sceneUuid")) sceneUuid = _data["sceneUuid"];
-        if (_data.contains("assetUuid")) assetUuid = _data["assetUuid"];
-        if (_data.contains("timeOffsetInScene")) timeOffsetInScene = _data["timeOffsetInScene"];
-        if (_data.contains("duration")) duration = _data["duration"];
-        if (_data.contains("startTime")) startTime = _data["startTime"];
-        if (_data.contains("endTime")) endTime = _data["endTime"];
-        if (_data.contains("cropData")) cropData = _data["cropData"];
+        if (_data.contains("bRoll")) bRoll = SceneRollV2(_data["bRoll"]);
+        if (_data.contains("recordVideoOver")) recordVideoOver = _data["recordVideoOver"];
     }
     std::string sceneUuid;
-    std::string assetUuid;
-    int timeOffsetInScene{0};
-    int duration{0};
-    std::optional<int> startTime;
-    std::optional<int> endTime;
-    std::optional<json> cropData;
+    SceneRollV2 bRoll;
+    bool recordVideoOver{false};
 };
 
 struct ProjectSceneFootageDeleteReqBody {
@@ -766,8 +809,29 @@ NLOHMANN_JSON_SERIALIZE_ENUM(StatusEnum, {
 })
 
 NLOHMANN_JSON_SERIALIZE_ENUM(EntityTypeEnum, {
-    {EntityTypeEnum::CLIP, "CLIP"},
-    {EntityTypeEnum::PROJECT_ASSET, "PROJECT_ASSET"}
+    {EntityTypeEnum::UNKNOWN, "unknown"},
+    {EntityTypeEnum::USER, "user"},
+    {EntityTypeEnum::CLIP, "clip"},
+    {EntityTypeEnum::FOLDER, "folder"},
+    {EntityTypeEnum::PROJECT, "project"},
+    {EntityTypeEnum::PROJECT_ASSET, "projectAsset"},
+    {EntityTypeEnum::PROJECT_SEQUENCE, "sequence"},
+    {EntityTypeEnum::PROJECT_VIDEO, "project_video"},
+    {EntityTypeEnum::STOCK_MEDIA, "stock_media"},
+    {EntityTypeEnum::STOCK_AUDIO, "stock_audio"},
+    {EntityTypeEnum::VOICE, "voice"},
+    {EntityTypeEnum::PICTURES, "pictures"},
+    {EntityTypeEnum::VISLA_MEDIA, "visla_media"},
+    {EntityTypeEnum::STOCK_MEDIA_PEXELS, "pexels"},
+    {EntityTypeEnum::STOCK_MEDIA_STORYBLOCKS, "storyblocks"},
+    {EntityTypeEnum::STOCK_MEDIA_GETTYIMAGES, "gettyimages"},
+    {EntityTypeEnum::AGENT_PROJECT, "agent_project"},
+    {EntityTypeEnum::AGENT_PROJECT_MEDIA, "agent_project_media"},
+    {EntityTypeEnum::CUSTOM_VOICE, "custom_voice"},
+    {EntityTypeEnum::AVATAR, "avatar"},
+    {EntityTypeEnum::AVATAR_LOOK, "avatar_look"},
+    {EntityTypeEnum::WORKSPACE, "workspace"},
+    {EntityTypeEnum::TEAMSPACE, "teamspace"}
 })
 
 } // namespace pjson
