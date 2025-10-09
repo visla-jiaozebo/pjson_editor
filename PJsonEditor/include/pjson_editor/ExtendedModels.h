@@ -295,11 +295,11 @@ struct ExtendedProjectSceneRenameReqBody {
 struct ExtendedProjectSceneMoveReqBody { 
     ExtendedProjectSceneMoveReqBody() = default;
     ExtendedProjectSceneMoveReqBody(const nlohmann::json &_data) {
-        if (_data.contains("uuid")) uuid = _data["uuid"];
+        if (_data.contains("sceneUuid")) sceneUuid = _data["sceneUuid"];
         if (_data.contains("newIndex")) newIndex = _data["newIndex"];
         if (_data.contains("afterSceneUuid")) afterSceneUuid = _data["afterSceneUuid"];
     }
-    std::string uuid; 
+    std::string sceneUuid; 
     int newIndex;
     std::optional<std::string> afterSceneUuid; // UUID of scene to insert after
 };

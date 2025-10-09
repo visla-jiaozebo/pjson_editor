@@ -531,7 +531,7 @@ ApiResult ExtendedControllerAPI::moveScene(const ExtendedProjectSceneMoveReqBody
     // Step 2: Find current scene and validate
     auto currSceneIt = std::find_if(scenes.begin(), scenes.end(), 
         [&reqBody](const ExtendedProjectScene& scene) {
-            return scene.uuid == reqBody.uuid;
+            return scene.uuid == reqBody.sceneUuid;
         });
     
     if (currSceneIt == scenes.end()) {
