@@ -41,7 +41,7 @@ public:
 
 private:
   std::unique_ptr<ExtendedControllerAPI> controller;
-  std::unique_ptr<ExtendedDataStore> dataStore;
+  std::shared_ptr<ExtendedDataStore> dataStore;
   std::string _dump_folder;
   uint32_t request_counter{0};
   std::map<std::string, std::pair<req_ptr, resp_ptr>> requests;

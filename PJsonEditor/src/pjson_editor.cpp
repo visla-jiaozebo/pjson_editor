@@ -76,7 +76,6 @@ static std::vector<Route> routes = {
     Route{std::regex(R"(/v3/project/[^/]+/scene/add)"), "POST",
           // createHandler(&ExtendedControllerAPI::addScene),
           nullptr, &ExtendedControllerAPI::addSceneFeedServerResp},
-
     {std::regex(R"(/v3/project/[^/]+/scene/rename)"), "PUT",
      createHandler(&ExtendedControllerAPI::renameScene)},
     {std::regex(R"(/v3/project/[^/]+/scene/move)"), "PUT",
@@ -85,7 +84,8 @@ static std::vector<Route> routes = {
      createHandler(&ExtendedControllerAPI::setSceneTime)},
 
     {std::regex(R"(/v3/project/[^/]+/scene/add-footage)"), "PUT", nullptr},
-
+    {std::regex(R"(/v3/project/[^/]+/scene/adjust-footage)"), "PUT",
+      createHandler(&ExtendedControllerAPI::adjustFootage)},
     {std::regex(R"(/v3/project/[^/]+/scene/cut)"), "POST",
      createHandler(&ExtendedControllerAPI::cutScene)},
     {std::regex(R"(/v3/project/[^/]+/scene/split)"), "PUT",
@@ -103,22 +103,23 @@ static std::vector<Route> routes = {
     //  scene/scale from docs/API-snapshot.md
     {std::regex(R"(/v3/project/[^/]+/scene/scale)"), "PUT",
      createHandler(&ExtendedControllerAPI::setSceneScale)},
+    {std::regex(R"(/v3/project/[^/]+/add-bgm)"), "POST", nullptr,
+     &ExtendedControllerAPI::updateSceneList},
+    {std::regex(R"(/v3/project/[^/]+/edit-bgm)"), "PUT",
+     createHandler(&ExtendedControllerAPI::editBgm), &ExtendedControllerAPI::updateSceneList},
 };
 
 PJsonEditor::PJsonEditor(const nlohmann::json &scene_list_resp) {
+  controller = std::make_unique<ExtendedControllerAPI>();
+  dataStore = std::make_shared<ExtendedDataStore>();
   update(scene_list_resp);
+  controller->setDataStore(dataStore);
 }
 
 void PJsonEditor::update(const nlohmann::json &list_resp) {
   // Initialize with config if needed
   auto pjson = std::make_shared<ExtendedProjectAndScenesVo>(list_resp);
-  dataStore = std::make_unique<ExtendedDataStore>();
   dataStore->init(pjson);
-  controller = std::make_unique<ExtendedControllerAPI>();
-  // Convert unique_ptr to shared_ptr for setDataStore
-  std::shared_ptr<ExtendedDataStore> sharedDataStore(
-      dataStore.get(), [](ExtendedDataStore *) {});
-  controller->setDataStore(sharedDataStore);
 }
 
 // Route request using the route table
@@ -247,7 +248,7 @@ static resp_ptr createErrorResponse(int statusCode,
   resp->status_code = statusCode;
   resp->headers["Content-Type"] = "application/json";
 
-  nlohmann::json& responseJson = resp->body;
+  nlohmann::json &responseJson = resp->body;
   responseJson["code"] = -1;
   responseJson["msg"] = message;
   return resp;

@@ -112,7 +112,8 @@ public:
     ApiResult setSceneScale(const PsSceneScaleReqBody& reqBody);
 
     ApiResult addBgm(const ProjectBgmAddReqBody& reqBody);
-        ApiResult deleteBgm(const ProjectBgmDeleteReqBody& reqBody);
+    void updateSceneList(const nlohmann::json &resp);
+    ApiResult deleteBgm(const ProjectBgmDeleteReqBody& reqBody);
     ApiResult editBgm(const ProjectBgmEditReqBody& reqBody);
     ApiResult adjustBgmAudio(const PsSceneTimelineVolumeReqBody& reqBody);
     ApiResult setSceneBgStyle(const PsSceneBgStyleReqBody& reqBody);

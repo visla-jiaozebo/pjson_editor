@@ -232,7 +232,38 @@ TEST_CASE_FIXTURE(TestSceneContext, "/v3/project/{projectUuid}/scene/") {
       CHECK(brollIt != theScene["brolls"].end());
       auto timelineUuid = (*brollIt)["timelineUuid"].get<std::string>();
       CHECK(!timelineUuid.empty());
+      // adjust footage
+      {
+        // {"sceneUuid":"1426163752314679401","startTime":1975,"endTime":10000,"timeOffsetInProject":33600,"timelineUuid":"1426163753342283978"}
+        nlohmann::json requestBody{
+            {"sceneUuid", sceneUuid},
+            {"startTime", 1975},
+            {"endTime", 10000},
+            {"timeOffsetInProject", 33600},
+            {"timelineUuid", timelineUuid}};
 
+        nlohmann::json serverResponse = apiClient->post(
+            "/v3/project/" + PROPJECT_UUID + "/scene/adjust-footage",
+            requestBody, "PUT");
+        auto r = executor->call(std::make_shared<Request>(
+            Request{.method = "PUT",
+                    .url = "/v3/project/" + PROPJECT_UUID +
+                           "/scene/adjust-footage",
+                    .body = requestBody}));
+        auto &localResponse = r->body;
+        CHECK(serverResponse["code"] == localResponse["code"]);
+        CHECK(localResponse["data"]["scene"]["brolls"].is_array());
+        // get the broll from data/scene/brolls/timelineUuid==timelineUuid
+        auto brollIt = std::find_if(
+            localResponse["data"]["scene"]["brolls"].begin(),
+            localResponse["data"]["scene"]["brolls"].end(),
+            [&](const nlohmann::json &broll) {
+              return broll["timelineUuid"] == timelineUuid;
+            });
+        CHECK(brollIt != localResponse["data"]["scene"]["brolls"].end());
+        CHECK((*brollIt)["startTime"] == 1975);
+        CHECK((*brollIt)["timeOffsetInProject"] == 33600);
+      }
       // "scene/scale"
       {
         nlohmann::json requestBody{
@@ -279,4 +310,52 @@ TEST_CASE_FIXTURE(TestSceneContext, "/v3/project/{projectUuid}/scene/") {
                 .body = {{"sceneUuid", sceneUuid}}}));
   }
   // Local ExtendedAPI comparison
+}
+
+TEST_CASE_FIXTURE(TestSceneContext, "/v3/project/{projectUuid}/bgm") {
+  { //"add-bgm"
+    // {"entityType":"stock_audio","entityUuid":"1104599094787051520"}
+
+    nlohmann::json requestBody{{"entityType", "stock_audio"}, {"entityUuid", "1104599094787051520"}};
+    nlohmann::json serverResponse;
+    {
+      serverResponse = apiClient->post(
+          "/v3/project/" + PROPJECT_UUID + "/add-bgm", requestBody);
+      CHECK(serverResponse["code"] == 0);
+      
+      auto r = executor->call(std::make_shared<Request>(
+          Request{.method = "POST",
+                  .url = "/v3/project/" + PROPJECT_UUID + "/add-bgm",
+                  .body = requestBody}));
+      CHECK(r->status_code == 404);
+      executor->feedServerResponse(r, serverResponse);
+      CHECK(serverResponse["data"]["bgms"].is_array());
+      CHECK(serverResponse["data"]["bgms"].size() > 0);
+      
+
+    }
+    {
+      auto autoDucking = false;
+      // edit-bgm
+      // {"bgm":{"timelineUuid":"1426231537724035503","mixed":{"intro":true,"outro":true,"chorusLoop":false,"autoDucking":true}}}
+      nlohmann::json requestBody{
+          {"bgm",
+           {{"timelineUuid", serverResponse["data"]["bgms"][0]["timelineUuid"]},
+            {"mixed",
+             {{"intro", true},
+              {"outro", true},
+              {"chorusLoop", false},
+              {"autoDucking", autoDucking}}}}}};
+      serverResponse = apiClient->post(
+          "/v3/project/" + PROPJECT_UUID + "/edit-bgm", requestBody, "PUT");
+      auto r = executor->call(std::make_shared<Request>(
+          Request{.method = "PUT",
+                  .url = "/v3/project/" + PROPJECT_UUID + "/edit-bgm",
+                  .body = requestBody}));
+      CHECK(r->body["code"] == serverResponse["code"]);
+      CHECK(r->body["data"]["bgms"][0]["timelineUuid"] == serverResponse["data"]["bgms"][0]["timelineUuid"]);
+      CHECK(autoDucking == serverResponse["data"]["bgms"][0]["mixed"]["autoDucking"]);
+      CHECK(r->body["data"]["bgms"][0]["mixed"]["autoDucking"] == serverResponse["data"]["bgms"][0]["mixed"]["autoDucking"]);
+    }
+  }
 }

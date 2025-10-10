@@ -1,4 +1,5 @@
 #include "pjson_editor/ExtendedAPI.h"
+#include <cassert>
 #include <nlohmann/json.hpp>
 #include <string>
 #include <vector>
@@ -2145,6 +2146,24 @@ ApiResult ExtendedControllerAPI::addBgm(const ProjectBgmAddReqBody& reqBody) {
     nlohmann::json responseData = toJson(resultData);
     
     return ApiResult::success(patch, responseData);
+}
+
+void ExtendedControllerAPI::updateSceneList(const nlohmann::json &resp) {
+    assert(dataStore);
+    if (!dataStore) {
+        return;
+    }
+    // what if there is no "code" field?
+    assert(resp.contains("code"));
+    if (resp.value("code", -1) != 0) {
+        return;
+    }
+    assert(resp.contains("data") && resp["data"].contains("scenes"));
+    if (!resp.contains("data") || !resp["data"].contains("scenes")) {
+        return;
+    }
+    auto pjson = std::make_shared<ExtendedProjectAndScenesVo>(resp["data"]["scenes"]);
+    dataStore->init(pjson);
 }
 
 ApiResult ExtendedControllerAPI::deleteBgm(const ProjectBgmDeleteReqBody& reqBody) {
