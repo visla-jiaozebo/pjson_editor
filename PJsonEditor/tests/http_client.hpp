@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <memory>
 #include <stdexcept>
+#include <algorithm>
 
 // HTTP client using curl command line tool
 class CurlHttpClient {
@@ -29,7 +30,36 @@ private:
         }
         return result;
     }
-    
+    std::string extract_url_path(const std::string& url) {
+        // Find the position after the protocol (http:// or https://)
+        size_t protocol_pos = url.find("://");
+        if (protocol_pos == std::string::npos) {
+            return url; // No protocol found, assume it's already a path
+        }
+        
+        // Find the first '/' after the protocol and domain
+        size_t path_start = url.find('/', protocol_pos + 3);
+        if (path_start == std::string::npos) {
+            return "/"; // No path found, return root
+        }
+        
+        // Extract everything after the domain
+        std::string path = url.substr(path_start);
+        
+        // Remove query parameters if present
+        size_t query_pos = path.find('?');
+        if (query_pos != std::string::npos) {
+            path = path.substr(0, query_pos);
+        }
+        
+        // Remove fragment if present
+        size_t fragment_pos = path.find('#');
+        if (fragment_pos != std::string::npos) {
+            path = path.substr(0, fragment_pos);
+        }
+        
+        return path;
+    }
 public:
     Response post(const std::string& url, const std::string& json_body, const std::string& method="POST", const std::string& auth_token = "") {
         Response resp;
@@ -39,6 +69,16 @@ public:
         std::ofstream ofs(temp_file);
         ofs << json_body;
         ofs.close();
+        // dump to local file for debugging
+        // get the url path after the domain
+        auto url_path = extract_url_path(url);
+        // replace '/' with '_'
+        std::replace(url_path.begin(), url_path.end(), '/', '_');
+        // url_path = std::replace(url_path, std::regex("/"), "_");
+        {
+            std::ofstream debug_ofs(method + url_path + "_request.json");
+            debug_ofs << json_body;
+        }
         
         // Build curl command
         std::string cmd = "curl -s -w \"HTTP_CODE:%{http_code}\" -X " + method + " ";
@@ -61,7 +101,10 @@ public:
                 resp.status_code = 0;
                 resp.body = output;
             }
-            
+            {
+                std::ofstream resp_debug_ofs(method + url_path + "_response.json");
+                resp_debug_ofs << resp.body;
+            }
         } catch (const std::exception& e) {
             resp.status_code = 0;
             resp.body = "Error: " + std::string(e.what());
@@ -81,6 +124,11 @@ public:
         }
         cmd += "\"" + url + "\"";
         
+        // dump to local file for debugging
+        // get the url path after the domain
+        auto url_path = extract_url_path(url);
+        // replace '/' with '_'
+        std::replace(url_path.begin(), url_path.end(), '/', '_');
         try {
             std::string output = exec_command(cmd.c_str());
             
@@ -94,7 +142,10 @@ public:
                 resp.status_code = 0;
                 resp.body = output;
             }
-            
+            {
+                std::ofstream resp_debug_ofs("GET" + url_path + "_response.json");
+                resp_debug_ofs << resp.body;
+            }
         } catch (const std::exception& e) {
             resp.status_code = 0;
             resp.body = "Error: " + std::string(e.what());

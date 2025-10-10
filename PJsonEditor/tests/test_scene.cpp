@@ -9,6 +9,13 @@
 #include <pjson_editor/pjson_editor.hpp>
 using namespace pjson;
 
+TEST_CASE("Check CWD") {
+  char cwd[PATH_MAX];
+  if (getcwd(cwd, sizeof(cwd)) != nullptr) {
+    std::cout << "Current working directory: " << cwd << std::endl;
+  }
+}
+
 class TestSceneContext {
 public:
   api_request_client apiClient;
@@ -169,6 +176,7 @@ TEST_CASE_FIXTURE(TestSceneContext, "/v3/project/{projectUuid}/scene/") {
       sceneUuid = serverResponse["data"]["sceneUuid"].get<std::string>();
     }
     {
+      std::string targetEntityUuid = "7000000600003169";
       // add footage
       // {"sceneUuid":"1422511945931645372","bRoll":{"startTime":0,"endTime":10000,"entityType":"pexels","entityUuid":"7000000600003169","timeOffsetInProject":3600}}
       nlohmann::json requestBody{{"sceneUuid", sceneUuid},
@@ -176,7 +184,7 @@ TEST_CASE_FIXTURE(TestSceneContext, "/v3/project/{projectUuid}/scene/") {
                                   {{"startTime", 0},
                                    {"endTime", 10000},
                                    {"entityType", "pexels"},
-                                   {"entityUuid", "7000000600003169"},
+                                   {"entityUuid", targetEntityUuid},
                                    {"timeOffsetInProject", 3600}}}};
       nlohmann::json serverResponse =
           apiClient.post("/v3/project/" + PROPJECT_UUID + "/scene/add-footage",
@@ -188,29 +196,69 @@ TEST_CASE_FIXTURE(TestSceneContext, "/v3/project/{projectUuid}/scene/") {
       auto &localResponse = r->body;
       CHECK(r->status_code == 404);
       executor->feedServerResponse(r, serverResponse);
-      executor->update(apiClient.get("/v3/project/" + PROPJECT_UUID + "/scene/list"));
-    }
-    if (0) {
+      auto listResp =
+          apiClient.get("/v3/project/" + PROPJECT_UUID + "/scene/list");
+      executor->update(listResp);
+      // find the asset in the assets list which the sourceEntityUuid is
+      // "7000000600003169", the whole json format is at
+      // build/PJsonEditor/GET_v3_project_1358840261077225472_scene_list_response.json
+
+      // Search for the asset with sourceEntityUuid "7000000600003169"
+      std::string assetUuid;
+
+      if (listResp.contains("data") && listResp["data"].contains("assets")) {
+        for (const auto &asset : listResp["data"]["assets"]) {
+          if (asset.contains("sourceEntityUuid") &&
+              asset["sourceEntityUuid"].get<std::string>() ==
+                  targetEntityUuid) {
+            assetUuid = asset["assetUuid"].get<std::string>();
+            break;
+          }
+        }
+      }
+
+      CHECK(assetUuid != "");
+      // find the scene and assert the asset is in the scene's brolls
+      auto sceneIt = std::find_if(listResp["data"]["scenes"].begin(),
+                                  listResp["data"]["scenes"].end(),
+                                  [&](const nlohmann::json &scene) {
+                                    return scene["sceneUuid"] == sceneUuid;
+                                  });
+      CHECK(sceneIt != listResp["data"]["scenes"].end());
+      auto theScene = *sceneIt;
+      auto brollIt =
+          std::find_if(theScene["brolls"].begin(), theScene["brolls"].end(),
+                       [&](const nlohmann::json &broll) {
+                         return broll["assetUuid"] == assetUuid;
+                       });
+      CHECK(brollIt != theScene["brolls"].end());
+      auto timelineUuid = (*brollIt)["timelineUuid"].get<std::string>();
+      CHECK(!timelineUuid.empty());
+
       // "scene/scale"
       {
-        //   "scales": [
-        //     {
-        //       "scale": {
-        //         "coordOffset": [
-        //           0.1
-        //         ],
-        //         "value": 0.1
-        //       },
-        //       "timelineUuid": 996654321
-        //     }
-        //   ],
-        //   "sceneUuid": "string"
+
+        //   {
+        //     "sceneUuid": "1426157915361849943",
+        //     "scales": [
+        //         {
+        //             "timelineUuid": "1426157916326539959",
+        //             "scale": {
+        //                 "value": 1,
+        //                 "coordOffset": [
+        //                     0.2515923566878981,
+        //                     0.13018867924528302
+        //                 ]
+        //             }
+        //         }
+        //     ]
         // }
-        nlohmann::json requestBody{
-            {"sceneUuid", sceneUuid},
-            {"scales",
-             {{{"scale", {{"coordOffset", {0.1}}, {"value", 0.8}}}},
-              {"timelineUuid", 996654321}}}};
+        nlohmann::json requestBody{{"sceneUuid", sceneUuid},
+                                   {"scales",
+                                    {{{"timelineUuid", timelineUuid},
+                                      {"scale",
+                                       {{"value", 0.7083333333333334},
+                                        {"coordOffset", {0.25, 0.13}}}}}}}};
 
         nlohmann::json serverResponse =
             apiClient.post("/v3/project/" + PROPJECT_UUID + "/scene/scale",
