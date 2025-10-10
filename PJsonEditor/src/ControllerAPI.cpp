@@ -2046,7 +2046,7 @@ ApiResult ExtendedControllerAPI::changeScaleToAll(const UpdateProjectScaleReqBod
     
     return ApiResult::success(patch);
 }
-
+// -/v3/project/{projectUuid}/scene/scale
 ApiResult ExtendedControllerAPI::setSceneScale(const PsSceneScaleReqBody& reqBody) {
     if (!dataStore) {
         return ApiResult::error(ApiMessage::DATASTORE_NOT_INITIALIZED);
@@ -2138,7 +2138,7 @@ ApiResult ExtendedControllerAPI::setSceneScale(const PsSceneScaleReqBody& reqBod
         }
         
         nlohmann::json scaleVo = {
-            {"timelineId", timelineId}
+            {"timelineUuid", timelineId}
         };
         
         // Extract scale data from cropData (our storage workaround)
