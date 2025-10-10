@@ -88,36 +88,8 @@ pjson::ExtendedProjectAndScenesVo::ExtendedProjectAndScenesVo(const nlohmann::js
                 if (sceneJson.contains("arolls") && sceneJson["arolls"].is_array()) {
                     scene.aRolls.clear();
                     for (const auto& timelineJson : sceneJson["arolls"]) {
-                        ExtendedTimeline timeline;
-                        if (timelineJson.contains("timelineUuid")) {
-                            timeline.uuid = timelineJson["timelineUuid"].get<std::string>();
-                        }
-                        if (timelineJson.contains("sceneUuid")) {
-                            timeline.sceneUuid = timelineJson["sceneUuid"].get<std::string>();
-                        }
-                        if (timelineJson.contains("assetUuid")) {
-                            timeline.assetUuid = timelineJson["assetUuid"].get<std::string>();
-                        }
-                        if (timelineJson.contains("timeOffsetInProject")) {
-                            timeline.timeOffsetInProject = timelineJson["timeOffsetInProject"].get<int>();
-                        }
-                        if (timelineJson.contains("startTime")) {
-                            timeline.startTime = timelineJson["startTime"].get<int>();
-                        }
-                        if (timelineJson.contains("endTime")) {
-                            timeline.endTime = timelineJson["endTime"].get<int>();
-                        }
-                        if (timelineJson.contains("timelineDuration")) {
-                            timeline.duration = timelineJson["timelineDuration"].get<int>();
-                        }
-                        if (timelineJson.contains("volume")) {
-                            timeline.volume = timelineJson["volume"].get<double>();
-                        }
-                        if (timelineJson.contains("category")) {
-                            // Parse category enum - would need proper mapping
-                            timeline.category = ProjectTimelineCategoryEnum::MAIN_STORY;
-                        }
-                        
+                        ExtendedTimeline timeline(timelineJson);  // Use constructor
+                        timeline.category = ProjectTimelineCategoryEnum::MAIN_STORY; // Set category
                         scene.aRolls.push_back(timeline);
                         timelines.push_back(timeline); // Also add to global timeline list
                     }
@@ -127,33 +99,8 @@ pjson::ExtendedProjectAndScenesVo::ExtendedProjectAndScenesVo(const nlohmann::js
                 if (sceneJson.contains("brolls") && sceneJson["brolls"].is_array()) {
                     scene.bRolls.clear();
                     for (const auto& timelineJson : sceneJson["brolls"]) {
-                        ExtendedTimeline timeline;
-                        if (timelineJson.contains("timelineUuid")) {
-                            timeline.uuid = timelineJson["timelineUuid"].get<std::string>();
-                        }
-                        if (timelineJson.contains("sceneUuid")) {
-                            timeline.sceneUuid = timelineJson["sceneUuid"].get<std::string>();
-                        }
-                        if (timelineJson.contains("assetUuid")) {
-                            timeline.assetUuid = timelineJson["assetUuid"].get<std::string>();
-                        }
-                        if (timelineJson.contains("timeOffsetInProject")) {
-                            timeline.timeOffsetInProject = timelineJson["timeOffsetInProject"].get<int>();
-                        }
-                        if (timelineJson.contains("startTime")) {
-                            timeline.startTime = timelineJson["startTime"].get<int>();
-                        }
-                        if (timelineJson.contains("endTime")) {
-                            timeline.endTime = timelineJson["endTime"].get<int>();
-                        }
-                        if (timelineJson.contains("timelineDuration")) {
-                            timeline.duration = timelineJson["timelineDuration"].get<int>();
-                        }
-                        if (timelineJson.contains("volume")) {
-                            timeline.volume = timelineJson["volume"].get<double>();
-                        }
-                        timeline.category = ProjectTimelineCategoryEnum::FOOTAGE;
-                        
+                        ExtendedTimeline timeline(timelineJson);  // Use constructor
+                        timeline.category = ProjectTimelineCategoryEnum::FOOTAGE; // Set category
                         scene.bRolls.push_back(timeline);
                         timelines.push_back(timeline);
                     }
@@ -163,36 +110,7 @@ pjson::ExtendedProjectAndScenesVo::ExtendedProjectAndScenesVo(const nlohmann::js
                 if (sceneJson.contains("voiceOvers") && sceneJson["voiceOvers"].is_array()) {
                     scene.voiceOvers.clear();
                     for (const auto& voiceJson : sceneJson["voiceOvers"]) {
-                        VoiceOver voiceOver;
-                        if (voiceJson.contains("voiceUuid")) {
-                            voiceOver.uuid = voiceJson["voiceUuid"].get<std::string>();
-                        }
-                        if (voiceJson.contains("sceneUuid")) {
-                            voiceOver.sceneUuid = voiceJson["sceneUuid"].get<std::string>();
-                        }
-                        if (voiceJson.contains("projectUuid")) {
-                            voiceOver.projectUuid = voiceJson["projectUuid"].get<std::string>();
-                        }
-                        if (voiceJson.contains("assetUuid")) {
-                            voiceOver.assetUuid = voiceJson["assetUuid"].get<std::string>();
-                        }
-                        if (voiceJson.contains("timeOffsetInProject")) {
-                            voiceOver.timeOffsetInProject = voiceJson["timeOffsetInProject"].get<int>();
-                        }
-                        if (voiceJson.contains("startTime")) {
-                            voiceOver.startTime = voiceJson["startTime"].get<int>();
-                        }
-                        if (voiceJson.contains("endTime")) {
-                            voiceOver.endTime = voiceJson["endTime"].get<int>();
-                        }
-                        if (voiceJson.contains("timelineDuration")) {
-                            voiceOver.duration = voiceJson["timelineDuration"].get<int>();
-                        }
-                        if (voiceJson.contains("volume")) {
-                            voiceOver.volume = voiceJson["volume"].get<double>();
-                        }
-                        voiceOver.category = ProjectTimelineCategoryEnum::VOICE_OVER;
-                        
+                        VoiceOver voiceOver(voiceJson);  // Use constructor
                         scene.voiceOvers.push_back(voiceOver);
                     }
                 }
@@ -204,16 +122,7 @@ pjson::ExtendedProjectAndScenesVo::ExtendedProjectAndScenesVo(const nlohmann::js
                     
                     if (transcriptJson.contains("items") && transcriptJson["items"].is_array()) {
                         for (const auto& itemJson : transcriptJson["items"]) {
-                            TranscriptItem item;
-                            if (itemJson.contains("text")) {
-                                item.text = itemJson["text"].get<std::string>();
-                            }
-                            if (itemJson.contains("startMs")) {
-                                item.startMs = itemJson["startMs"].get<int>();
-                            }
-                            if (itemJson.contains("endMs")) {
-                                item.endMs = itemJson["endMs"].get<int>();
-                            }
+                            TranscriptItem item(itemJson);  // Use the constructor
                             transcript.items.push_back(item);
                         }
                         
@@ -221,7 +130,7 @@ pjson::ExtendedProjectAndScenesVo::ExtendedProjectAndScenesVo(const nlohmann::js
                         std::string fullText;
                         for (const auto& item : transcript.items) {
                             if (!fullText.empty()) fullText += " ";
-                            fullText += item.text;
+                            fullText += item.content;
                         }
                         transcript.text = fullText;
                     }
@@ -237,13 +146,7 @@ pjson::ExtendedProjectAndScenesVo::ExtendedProjectAndScenesVo(const nlohmann::js
                 if (sceneJson.contains("transitions") && sceneJson["transitions"].is_array()) {
                     scene.transitions.clear();
                     for (const auto& transitionJson : sceneJson["transitions"]) {
-                        SceneTransition transition;
-                        if (transitionJson.contains("type")) {
-                            transition.type = transitionJson["type"].get<std::string>();
-                        }
-                        if (transitionJson.contains("duration")) {
-                            transition.duration = transitionJson["duration"].get<int>();
-                        }
+                        SceneTransition transition(transitionJson);  // Use constructor
                         scene.transitions.push_back(transition);
                     }
                 }
@@ -256,30 +159,7 @@ pjson::ExtendedProjectAndScenesVo::ExtendedProjectAndScenesVo(const nlohmann::js
         if (data.contains("assets") && data["assets"].is_object()) {
             assets.clear();
             for (const auto& [assetId, assetJson] : data["assets"].items()) {
-                ProjectSceneAsset asset;
-                if (assetJson.contains("assetUuid")) {
-                    asset.uuid = assetJson["assetUuid"].get<std::string>();
-                    asset.assetId = assetJson["assetUuid"].get<std::string>();
-                }
-                if (assetJson.contains("assetLink")) {
-                    asset.assetLink = assetJson["assetLink"].get<std::string>();
-                }
-                if (assetJson.contains("assetType")) {
-                    asset.assetType = assetJson["assetType"].get<std::string>();
-                }
-                if (assetJson.contains("duration")) {
-                    asset.duration = assetJson["duration"].get<int>();
-                }
-                if (assetJson.contains("width")) {
-                    asset.width = assetJson["width"].get<int>();
-                }
-                if (assetJson.contains("height")) {
-                    asset.height = assetJson["height"].get<int>();
-                }
-                if (assetJson.contains("audioLink")) {
-                    asset.audioLink = assetJson["audioLink"].get<std::string>();
-                }
-                
+                ProjectSceneAsset asset(assetJson);  // Use constructor
                 assets[assetId] = asset;
             }
         }
@@ -288,26 +168,7 @@ pjson::ExtendedProjectAndScenesVo::ExtendedProjectAndScenesVo(const nlohmann::js
         if (data.contains("bgms") && data["bgms"].is_array()) {
             bgms.clear();
             for (const auto& bgmJson : data["bgms"]) {
-                ProjectBgm bgm;
-                if (bgmJson.contains("assetUuid")) {
-                    bgm.assetUuid = bgmJson["assetUuid"].get<std::string>();
-                }
-                if (bgmJson.contains("assetLink")) {
-                    bgm.assetLink = bgmJson["assetLink"].get<std::string>();
-                }
-                if (bgmJson.contains("timelineUuid")) {
-                    bgm.uuid = bgmJson["timelineUuid"].get<std::string>();
-                }
-                if (bgmJson.contains("duration")) {
-                    bgm.duration = bgmJson["duration"].get<int>();
-                }
-                if (bgmJson.contains("volume")) {
-                    bgm.volume = bgmJson["volume"].get<double>();
-                }
-                if (bgmJson.contains("adjustedBgmLink")) {
-                    bgm.adjustedBgmLink = bgmJson["adjustedBgmLink"].get<std::string>();
-                }
-                
+                ProjectBgm bgm(bgmJson);  // Use constructor
                 bgms.push_back(bgm);
             }
         }
@@ -316,31 +177,7 @@ pjson::ExtendedProjectAndScenesVo::ExtendedProjectAndScenesVo(const nlohmann::js
         if (data.contains("syntheticVoices") && data["syntheticVoices"].is_object()) {
             syntheticVoices.clear();
             for (const auto& [voiceId, voiceJson] : data["syntheticVoices"].items()) {
-                SyntheticVoiceMetadata voice;
-                if (voiceJson.contains("uuid")) {
-                    voice.voiceId = voiceJson["uuid"].get<std::string>();
-                }
-                if (voiceJson.contains("voiceName")) {
-                    voice.voiceName = voiceJson["voiceName"].get<std::string>();
-                }
-                if (voiceJson.contains("locale")) {
-                    voice.language = voiceJson["locale"].get<std::string>();
-                }
-                if (voiceJson.contains("gender")) {
-                    voice.gender = voiceJson["gender"].get<std::string>();
-                }
-                // Store additional parameters as JSON
-                nlohmann::json additionalParams;
-                if (voiceJson.contains("voiceSpeakerName")) {
-                    additionalParams["voiceSpeakerName"] = voiceJson["voiceSpeakerName"];
-                }
-                if (voiceJson.contains("duration")) {
-                    additionalParams["duration"] = voiceJson["duration"];
-                }
-                if (!additionalParams.empty()) {
-                    voice.additionalParams = additionalParams;
-                }
-                
+                SyntheticVoiceMetadata voice(voiceJson);  // Use constructor
                 syntheticVoices[voiceId] = voice;
             }
         }
@@ -1964,9 +1801,10 @@ ApiResult ExtendedControllerAPI::setSceneTranscript(const ProjectSceneSetTranscr
     // Clear existing items and create single item for the text
     scene->transcript->items.clear();
     TranscriptItem item;
-    item.text = reqBody.newText;
-    item.startMs = 0;
-    item.endMs = scene->duration;
+    item.content = reqBody.newText;
+    item.start_time = 0.0;
+    item.end_time = scene->duration / 1000.0; // Convert ms to seconds
+    item.type = "pronunciation";
     scene->transcript->items.push_back(item);
     
     // Update total transcript duration
@@ -3166,11 +3004,22 @@ nlohmann::json ExtendedControllerAPI::convertSceneToProjectSceneVo(const Extende
         nlohmann::json items = nlohmann::json::array();
         for (const auto& item : scene.transcript->items) {
             nlohmann::json itemJson;
-            itemJson["startMs"] = item.startMs;
-            itemJson["endMs"] = item.endMs;
-            itemJson["text"] = item.text;
-            if (item.speaker.has_value()) {
-                itemJson["speaker"] = item.speaker.value();
+            itemJson["content"] = item.content;
+            itemJson["start_time"] = item.start_time;
+            itemJson["end_time"] = item.end_time;
+            itemJson["type"] = item.type;
+            if (item.sentence_end.has_value()) {
+                itemJson["sentence_end"] = item.sentence_end.value();
+            }
+            if (!item.alternatives.empty()) {
+                nlohmann::json alts = nlohmann::json::array();
+                for (const auto& alt : item.alternatives) {
+                    nlohmann::json altJson;
+                    altJson["content"] = alt.content;
+                    altJson["confidence"] = alt.confidence;
+                    alts.push_back(altJson);
+                }
+                itemJson["alternatives"] = alts;
             }
             items.push_back(itemJson);
         }

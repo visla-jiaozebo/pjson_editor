@@ -52,6 +52,72 @@ enum class EntityTypeEnum {
 
 // Core timeline with full backend fields
 struct ExtendedTimeline {
+    ExtendedTimeline() = default;
+    ExtendedTimeline(const nlohmann::json& timelineJson) {
+        if (timelineJson.contains("timelineUuid")) {
+            uuid = timelineJson["timelineUuid"].get<std::string>();
+        }
+        if (timelineJson.contains("sceneUuid")) {
+            sceneUuid = timelineJson["sceneUuid"].get<std::string>();
+        }
+        if (timelineJson.contains("projectUuid")) {
+            projectUuid = timelineJson["projectUuid"].get<std::string>();
+        }
+        if (timelineJson.contains("assetUuid")) {
+            assetUuid = timelineJson["assetUuid"].get<std::string>();
+        }
+        if (timelineJson.contains("category")) {
+            // Parse category enum - would need proper mapping
+            std::string categoryStr = timelineJson["category"].get<std::string>();
+            if (categoryStr == "MAIN_STORY") category = ProjectTimelineCategoryEnum::MAIN_STORY;
+            else if (categoryStr == "FOOTAGE") category = ProjectTimelineCategoryEnum::FOOTAGE;
+            else if (categoryStr == "VOICE_OVER") category = ProjectTimelineCategoryEnum::VOICE_OVER;
+            else if (categoryStr == "BACKGROUND_MUSIC") category = ProjectTimelineCategoryEnum::BACKGROUND_MUSIC;
+            else category = ProjectTimelineCategoryEnum::MAIN_STORY; // default
+        }
+        if (timelineJson.contains("timeOffsetInScene")) {
+            timeOffsetInScene = timelineJson["timeOffsetInScene"].get<int>();
+        }
+        if (timelineJson.contains("timeOffsetInProject")) {
+            timeOffsetInProject = timelineJson["timeOffsetInProject"].get<int>();
+        }
+        if (timelineJson.contains("duration") || timelineJson.contains("timelineDuration")) {
+            duration = timelineJson.contains("duration") ? 
+                       timelineJson["duration"].get<int>() : 
+                       timelineJson["timelineDuration"].get<int>();
+        }
+        if (timelineJson.contains("startTime")) {
+            startTime = timelineJson["startTime"].get<int>();
+        }
+        if (timelineJson.contains("endTime")) {
+            endTime = timelineJson["endTime"].get<int>();
+        }
+        if (timelineJson.contains("volume")) {
+            volume = timelineJson["volume"].get<double>();
+        }
+        if (timelineJson.contains("mute")) {
+            mute = timelineJson["mute"].get<bool>();
+        }
+        if (timelineJson.contains("speed")) {
+            speed = timelineJson["speed"].get<double>();
+        }
+        if (timelineJson.contains("blendMode")) {
+            blendMode = timelineJson["blendMode"].get<std::string>();
+        }
+        if (timelineJson.contains("cropData")) {
+            cropData = timelineJson["cropData"];
+        }
+        if (timelineJson.contains("kenburnsData")) {
+            kenburnsData = timelineJson["kenburnsData"];
+        }
+        if (timelineJson.contains("id")) {
+            id = timelineJson["id"].get<std::string>();
+        }
+        if (timelineJson.contains("assetId")) {
+            assetId = timelineJson["assetId"].get<std::string>();
+        }
+    }
+    
     std::string uuid;
     std::string sceneUuid;
     std::string projectUuid;
@@ -78,6 +144,70 @@ struct ExtendedTimeline {
 
 // Voice over specific structure
 struct VoiceOver {
+    VoiceOver() = default;
+    VoiceOver(const nlohmann::json& voiceJson) {
+        if (voiceJson.contains("voiceUuid")) {
+            uuid = voiceJson["voiceUuid"].get<std::string>();
+        }
+        if (voiceJson.contains("assetUuid")) {
+            assetUuid = voiceJson["assetUuid"].get<std::string>();
+        }
+        if (voiceJson.contains("sceneUuid")) {
+            sceneUuid = voiceJson["sceneUuid"].get<std::string>();
+        }
+        if (voiceJson.contains("projectUuid")) {
+            projectUuid = voiceJson["projectUuid"].get<std::string>();
+        }
+        if (voiceJson.contains("category")) {
+            // Parse category enum
+            std::string categoryStr = voiceJson["category"].get<std::string>();
+            if (categoryStr == "VOICE_OVER") category = ProjectTimelineCategoryEnum::VOICE_OVER;
+            else if (categoryStr == "NARRATION_VOICE_OVER") category = ProjectTimelineCategoryEnum::NARRATION_VOICE_OVER;
+            else if (categoryStr == "SYNTHETIC_VOICE_OVER") category = ProjectTimelineCategoryEnum::SYNTHETIC_VOICE_OVER;
+            else category = ProjectTimelineCategoryEnum::VOICE_OVER; // default
+        } else {
+            category = ProjectTimelineCategoryEnum::VOICE_OVER; // default
+        }
+        if (voiceJson.contains("timeOffsetInProject")) {
+            timeOffsetInProject = voiceJson["timeOffsetInProject"].get<int>();
+        }
+        if (voiceJson.contains("duration") || voiceJson.contains("timelineDuration")) {
+            duration = voiceJson.contains("duration") ? 
+                      voiceJson["duration"].get<int>() : 
+                      voiceJson["timelineDuration"].get<int>();
+        }
+        if (voiceJson.contains("startTime")) {
+            startTime = voiceJson["startTime"].get<int>();
+        }
+        if (voiceJson.contains("endTime")) {
+            endTime = voiceJson["endTime"].get<int>();
+        }
+        if (voiceJson.contains("volume")) {
+            volume = voiceJson["volume"].get<double>();
+        }
+        if (voiceJson.contains("audioLink")) {
+            audioLink = voiceJson["audioLink"].get<std::string>();
+        }
+        if (voiceJson.contains("voiceUuid")) {
+            voiceUuid = voiceJson["voiceUuid"].get<std::string>();
+        }
+        if (voiceJson.contains("audioOnly")) {
+            audioOnly = voiceJson["audioOnly"].get<bool>();
+        }
+        if (voiceJson.contains("shape")) {
+            shape = voiceJson["shape"].get<std::string>();
+        }
+        if (voiceJson.contains("scale")) {
+            scale = voiceJson["scale"].get<double>();
+        }
+        if (voiceJson.contains("position")) {
+            position = voiceJson["position"];
+        }
+        if (voiceJson.contains("usePosition")) {
+            usePosition = voiceJson["usePosition"].get<bool>();
+        }
+    }
+    
     std::string uuid;
     std::string assetUuid;
     std::string sceneUuid;
@@ -100,19 +230,56 @@ struct VoiceOver {
 };
 
 // Transcript structures
+struct TranscriptItemAlternative {
+    std::string content;
+    std::string confidence;
+    
+    TranscriptItemAlternative() = default;
+    TranscriptItemAlternative(const std::string& content, const std::string& confidence)
+        : content(content), confidence(confidence) {}
+};
+
 struct TranscriptItem {
     TranscriptItem() = default;
     TranscriptItem(const nlohmann::json& item) {
-        if (item.contains("start_time")) startMs = item["start_time"];
-        if (item.contains("end_time")) endMs = item["end_time"];
-        if (item.contains("content")) text = item["content"];
-        if (item.contains("speaker")) speaker = item["speaker"];
+        if (item.contains("content") && !item["content"].is_null()) {
+            content = item["content"].get<std::string>();
+        }
+        if (item.contains("start_time") && !item["start_time"].is_null()) {
+            start_time = item["start_time"].get<double>();
+        }
+        if (item.contains("end_time") && !item["end_time"].is_null()) {
+            end_time = item["end_time"].get<double>();
+        }
+        if (item.contains("type") && !item["type"].is_null()) {
+            type = item["type"].get<std::string>();
+        }
+        if (item.contains("sentence_end") && !item["sentence_end"].is_null()) {
+            sentence_end = item["sentence_end"].get<bool>();
+        }
+        if (item.contains("alternatives") && item["alternatives"].is_array()) {
+            for (const auto& alt : item["alternatives"]) {
+                if (alt.contains("content") && alt.contains("confidence")) {
+                    alternatives.emplace_back(
+                        alt["content"].get<std::string>(),
+                        alt["confidence"].get<std::string>()
+                    );
+                }
+            }
+        }
     }
-    int startMs{0};
-    int endMs{0};
-    std::string text;
-    std::optional<std::string> speaker;
-    std::optional<std::vector<std::string>> keywords;
+    
+    std::string content;  // item content (shortcut of alternatives[0].content)
+    double start_time{0.0};  // start time in seconds (matching Java Double)
+    double end_time{0.0};    // end time in seconds (matching Java Double)
+    std::string type;        // "pronunciation" or "punctuation" or "silent"
+    std::optional<bool> sentence_end;  // sentence end flag (matching Java Boolean)
+    std::vector<TranscriptItemAlternative> alternatives;  // content/confidence pairs
+    
+    // Helper method to get duration (matching Java getDuration())
+    double getDuration() const {
+        return end_time - start_time;
+    }
 };
 
 struct SceneTranscript {
@@ -147,6 +314,55 @@ struct SceneTranscript {
 
 // Asset structures
 struct ProjectSceneAsset {
+    ProjectSceneAsset() = default;
+    ProjectSceneAsset(const nlohmann::json& assetJson) {
+        if (assetJson.contains("assetId")) {
+            assetId = assetJson["assetId"].get<std::string>();
+        }
+        if (assetJson.contains("assetUuid")) {
+            uuid = assetJson["assetUuid"].get<std::string>();
+            if (assetId.empty()) { // Use uuid as assetId if assetId not provided
+                assetId = uuid;
+            }
+        }
+        if (assetJson.contains("assetLink")) {
+            assetLink = assetJson["assetLink"].get<std::string>();
+        }
+        if (assetJson.contains("audioLink")) {
+            audioLink = assetJson["audioLink"].get<std::string>();
+        }
+        if (assetJson.contains("assetType")) {
+            assetType = assetJson["assetType"].get<std::string>();
+        }
+        if (assetJson.contains("coverLink")) {
+            coverLink = assetJson["coverLink"].get<std::string>();
+        }
+        if (assetJson.contains("duration")) {
+            duration = assetJson["duration"].get<int>();
+        }
+        if (assetJson.contains("mediaId")) {
+            mediaId = assetJson["mediaId"].get<std::string>();
+        }
+        if (assetJson.contains("newMedia")) {
+            newMedia = assetJson["newMedia"].get<bool>();
+        }
+        if (assetJson.contains("voiceId")) {
+            voiceId = assetJson["voiceId"].get<std::string>();
+        }
+        if (assetJson.contains("aiTags")) {
+            aiTags = assetJson["aiTags"];
+        }
+        if (assetJson.contains("width")) {
+            width = assetJson["width"].get<int>();
+        }
+        if (assetJson.contains("height")) {
+            height = assetJson["height"].get<int>();
+        }
+        if (assetJson.contains("format")) {
+            format = assetJson["format"].get<std::string>();
+        }
+    }
+    
     std::string assetId;
     std::string uuid;
     std::string assetLink;
@@ -178,6 +394,22 @@ struct BaseLayer {
 
 // Transition structure
 struct SceneTransition {
+    SceneTransition() = default;
+    SceneTransition(const nlohmann::json& transitionJson) {
+        if (transitionJson.contains("type")) {
+            type = transitionJson["type"].get<std::string>();
+        }
+        if (transitionJson.contains("duration")) {
+            duration = transitionJson["duration"].get<int>();
+        }
+        if (transitionJson.contains("easing")) {
+            easing = transitionJson["easing"];
+        }
+        if (transitionJson.contains("properties")) {
+            properties = transitionJson["properties"];
+        }
+    }
+    
     std::string type;
     int duration{0};
     std::optional<json> easing;
@@ -221,6 +453,39 @@ struct SceneScale {
 
 // BGM structure
 struct ProjectBgm {
+    ProjectBgm() = default;
+    ProjectBgm(const nlohmann::json& bgmJson) {
+        if (bgmJson.contains("uuid")) {
+            uuid = bgmJson["uuid"].get<std::string>();
+        }
+        if (bgmJson.contains("timelineUuid")) {
+            uuid = bgmJson["timelineUuid"].get<std::string>();
+        }
+        if (bgmJson.contains("assetUuid") || bgmJson.contains("asset_uuid")) {
+            assetUuid = bgmJson.contains("assetUuid") ? 
+                       bgmJson["assetUuid"].get<std::string>() : 
+                       bgmJson["asset_uuid"].get<std::string>();
+        }
+        if (bgmJson.contains("assetLink")) {
+            assetLink = bgmJson["assetLink"].get<std::string>();
+        }
+        if (bgmJson.contains("adjustedBgmLink")) {
+            adjustedBgmLink = bgmJson["adjustedBgmLink"].get<std::string>();
+        }
+        if (bgmJson.contains("startTime")) {
+            startTime = bgmJson["startTime"].get<int>();
+        }
+        if (bgmJson.contains("duration")) {
+            duration = bgmJson["duration"].get<int>();
+        }
+        if (bgmJson.contains("volume")) {
+            volume = bgmJson["volume"].get<double>();
+        }
+        if (bgmJson.contains("loop")) {
+            loop = bgmJson["loop"].get<bool>();
+        }
+    }
+    
     std::string uuid;
     std::string assetUuid;  // asset_uuid from protobuf
     std::string assetLink;
@@ -233,6 +498,40 @@ struct ProjectBgm {
 
 // Synthetic voice metadata
 struct SyntheticVoiceMetadata {
+    SyntheticVoiceMetadata() = default;
+    SyntheticVoiceMetadata(const nlohmann::json& voiceJson) {
+        if (voiceJson.contains("uuid")) {
+            voiceId = voiceJson["uuid"].get<std::string>();
+        }
+        if (voiceJson.contains("voiceId")) {
+            voiceId = voiceJson["voiceId"].get<std::string>();
+        }
+        if (voiceJson.contains("voiceName")) {
+            voiceName = voiceJson["voiceName"].get<std::string>();
+        }
+        if (voiceJson.contains("language")) {
+            language = voiceJson["language"].get<std::string>();
+        }
+        if (voiceJson.contains("locale")) {
+            language = voiceJson["locale"].get<std::string>();
+        }
+        if (voiceJson.contains("gender")) {
+            gender = voiceJson["gender"].get<std::string>();
+        }
+        
+        // Store additional parameters as JSON
+        nlohmann::json additionalParams;
+        if (voiceJson.contains("voiceSpeakerName")) {
+            additionalParams["voiceSpeakerName"] = voiceJson["voiceSpeakerName"];
+        }
+        if (voiceJson.contains("duration")) {
+            additionalParams["duration"] = voiceJson["duration"];
+        }
+        if (!additionalParams.empty()) {
+            this->additionalParams = additionalParams;
+        }
+    }
+    
     std::string voiceId;
     std::string voiceName;
     std::string language;
