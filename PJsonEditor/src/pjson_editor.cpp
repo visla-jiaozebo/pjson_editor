@@ -49,8 +49,8 @@ struct Route {
 };
 
 // Forward declarations
-resp_ptr createSuccessResponse(ApiResult &&result);
-resp_ptr createErrorResponse(int statusCode, const std::string &message);
+static resp_ptr createSuccessResponse(ApiResult &&result);
+static resp_ptr createErrorResponse(int statusCode, const std::string &message);
 
 // Template function to create handlers for different request body types
 template <typename ReqBodyType>
@@ -71,7 +71,7 @@ createHandler(ApiResult (ExtendedControllerAPI::*method)(const ReqBodyType &)) {
 
 // Static route table with member function pointers
 static std::vector<Route> routes = {
-// POST routes using member function pointers
+    // POST routes using member function pointers
 
     Route{std::regex(R"(/v3/project/[^/]+/scene/add)"), "POST",
           // createHandler(&ExtendedControllerAPI::addScene),
@@ -84,8 +84,7 @@ static std::vector<Route> routes = {
     {std::regex(R"(/v3/project/[^/]+/scene/set-time)"), "PUT",
      createHandler(&ExtendedControllerAPI::setSceneTime)},
 
-    {std::regex(R"(/v3/project/[^/]+/scene/add-footage)"), "PUT",
-     nullptr},
+    {std::regex(R"(/v3/project/[^/]+/scene/add-footage)"), "PUT", nullptr},
 
     {std::regex(R"(/v3/project/[^/]+/scene/cut)"), "POST",
      createHandler(&ExtendedControllerAPI::cutScene)},
@@ -102,8 +101,8 @@ static std::vector<Route> routes = {
     {std::regex(R"(/v3/project/[^/]+/scene/[^/]+/script/edit)"), "POST",
      createHandler(&ExtendedControllerAPI::editScript)},
     //  scene/scale from docs/API-snapshot.md
-    // {std::regex(R"(/v3/project/[^/]+/scene/scale)"), "PUT",
-    //  createHandler(&ExtendedControllerAPI::scaleScene)},
+    {std::regex(R"(/v3/project/[^/]+/scene/scale)"), "PUT",
+     createHandler(&ExtendedControllerAPI::setSceneScale)},
 };
 
 PJsonEditor::PJsonEditor(const nlohmann::json &scene_list_resp) {
@@ -123,7 +122,8 @@ void PJsonEditor::update(const nlohmann::json &list_resp) {
 }
 
 // Route request using the route table
-resp_ptr routeRequest(ExtendedControllerAPI *controller, const Request &req) {
+static resp_ptr routeRequest(ExtendedControllerAPI *controller,
+                             const Request &req) {
   std::cout << req.method << " " << req.url << std::endl;
 
   // Find matching route
@@ -139,14 +139,48 @@ resp_ptr routeRequest(ExtendedControllerAPI *controller, const Request &req) {
   return createErrorResponse(404, "Endpoint not found: " + req.method + " " +
                                       req.url);
 }
+static std::string extract_url_path(const std::string &url) {
+  // Find the position after the protocol (http:// or https://)
+  size_t protocol_pos = url.find("://");
+  if (protocol_pos == std::string::npos) {
+    return url; // No protocol found, assume it's already a path
+  }
+
+  // Find the first '/' after the protocol and domain
+  size_t path_start = url.find('/', protocol_pos + 3);
+  if (path_start == std::string::npos) {
+    return "/"; // No path found, return root
+  }
+
+  // Extract everything after the domain
+  std::string path = url.substr(path_start);
+
+  // Remove query parameters if present
+  size_t query_pos = path.find('?');
+  if (query_pos != std::string::npos) {
+    path = path.substr(0, query_pos);
+  }
+
+  // Remove fragment if present
+  size_t fragment_pos = path.find('#');
+  if (fragment_pos != std::string::npos) {
+    path = path.substr(0, fragment_pos);
+  }
+
+  return path;
+}
 
 resp_ptr PJsonEditor::call(req_ptr req) {
 #ifndef NDEBUG
-  if (!dump_file_path.empty()) {
-    std::ofstream dump_file(dump_file_path.c_str(), std::ios::app);
-    dump_file << "Request: " << req->method << " " << req->url << "\n";
-    dump_file << "Body: " << req->body.dump(2) << "\n";
-    dump_file << "------------------------\n";
+  if (!_dump_folder.empty()) {
+    fs::create_directory(_dump_folder);
+    // assert(ok && "Failed to create dump folder");
+    auto url_path = extract_url_path(req->url);
+    std::replace(url_path.begin(), url_path.end(), '/', '_');
+    fs::path dump_file_path =
+        _dump_folder + "/" + req->method + url_path + "_req.json";
+    std::ofstream dump_file(dump_file_path.c_str());
+    dump_file << req->body.dump(2) << "\n";
     dump_file.close();
   }
 #endif
@@ -156,20 +190,15 @@ resp_ptr PJsonEditor::call(req_ptr req) {
   r->_requestId = req->_requestId;
   requests[req->_requestId] = std::make_pair(req, r);
 #ifndef NDEBUG
-  if (!dump_file_path.empty()) {
-    std::ofstream dump_file(dump_file_path.c_str(), std::ios::app);
-    dump_file << "Response: " << r->status_code << "\n";
-    auto body{r->body.dump(2)};
-    if (body.size() > 256) {
-      std::filesystem::path p(create_temp_file());
-      std::ofstream body_file(p);
-      body_file << body;
-      body_file.close();
-      body = p.string();
-    }
-    dump_file << "Body: " << body << "\n";
-    dump_file << "========================\n";
-    dump_file.close();
+  if (!_dump_folder.empty() && r->status_code != 404) {
+    fs::create_directory(_dump_folder);
+    // assert(ok && "Failed to create dump folder");
+    auto url_path = extract_url_path(req->url);
+    std::replace(url_path.begin(), url_path.end(), '/', '_');
+    fs::path dump_file_path =
+        _dump_folder + "/" + req->method + url_path + "_rsp.json";
+    std::ofstream dump_file(dump_file_path.c_str());
+    dump_file << r->body.dump(2) << "\n";
   }
 #endif
   return r;
@@ -191,10 +220,8 @@ void PJsonEditor::feedServerResponse(resp_ptr r, const nlohmann::json &resp) {
   }
 }
 
-void PJsonEditor::dump_file(const std::string &path) { dump_file_path = path; }
-
 // Helper function to create success response
-resp_ptr createSuccessResponse(ApiResult &&result) {
+static resp_ptr createSuccessResponse(ApiResult &&result) {
   resp_ptr resp = std::make_shared<Response>();
   resp->status_code = 200;
   resp->headers["Content-Type"] = "application/json";
@@ -214,16 +241,15 @@ resp_ptr createSuccessResponse(ApiResult &&result) {
 }
 
 // Helper function to create error response
-resp_ptr createErrorResponse(int statusCode, const std::string &message) {
+static resp_ptr createErrorResponse(int statusCode,
+                                    const std::string &message) {
   resp_ptr resp = std::make_shared<Response>();
   resp->status_code = statusCode;
   resp->headers["Content-Type"] = "application/json";
 
-  nlohmann::json responseJson;
+  nlohmann::json& responseJson = resp->body;
   responseJson["code"] = -1;
   responseJson["msg"] = message;
-
-  resp->body = responseJson.dump();
   return resp;
 }
 

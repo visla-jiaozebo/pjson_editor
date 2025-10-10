@@ -35,12 +35,14 @@ public:
   void feedServerResponse(resp_ptr, const nlohmann::json &);
   virtual ~PJsonEditor() = default;
 
-  void dump_file(const std::string &path);
+  inline void dump_folder(const std::string &path){
+    _dump_folder = path;
+  };
 
 private:
   std::unique_ptr<ExtendedControllerAPI> controller;
   std::unique_ptr<ExtendedDataStore> dataStore;
-  std::string dump_file_path;
+  std::string _dump_folder;
   uint32_t request_counter{0};
   std::map<std::string, std::pair<req_ptr, resp_ptr>> requests;
 };

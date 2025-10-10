@@ -14,9 +14,10 @@ private:
   std::string project_uuid;
 
 public:
-  api_request_client() {
+  api_request_client(std::string _dump_folder = "") {
     std::cout << "=== Real Server API Tester Initialized ===" << std::endl;
     std::cout << "Base URL: " << BASE_URL << std::endl;
+    http_client.dump_folder(_dump_folder);
     // check if /tmp/TOKEN_FILE exists and last modified time is within 1 hour
     if (std::filesystem::exists("/tmp/TOKEN_FILE")) {
       std::cout << "/tmp/TOKEN_FILE exists, checking timestamp..." << std::endl;
