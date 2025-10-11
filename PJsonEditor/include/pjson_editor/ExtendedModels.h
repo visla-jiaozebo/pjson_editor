@@ -145,7 +145,7 @@ struct ExtendedTimeline {
     json toJson() const {
         json result;
         
-        result["uuid"] = uuid;
+        result["timelineUuid"] = uuid;
         result["sceneUuid"] = sceneUuid;
         result["projectUuid"] = projectUuid;
         result["assetUuid"] = assetUuid;
@@ -852,7 +852,7 @@ struct ExtendedProjectScene {
     std::optional<bool> transcriptModified;
     
     // 策略和元数据
-    std::optional<int> brollShorterPolicyKey;
+    int brollShorterPolicyKey{0};
     std::optional<double> bgmVolume;
     
     // 兼容性字段：场景相关资产
@@ -883,13 +883,13 @@ struct ExtendedProjectScene {
         }
         
         // 时间线字段
-        if (_data.contains("aRolls") && _data["aRolls"].is_array()) {
-            for (const auto& arollJson : _data["aRolls"]) {
+        if (_data.contains("arolls") && _data["arolls"].is_array()) {
+            for (const auto& arollJson : _data["arolls"]) {
                 aRolls.emplace_back(arollJson);
             }
         }
-        if (_data.contains("bRolls") && _data["bRolls"].is_array()) {
-            for (const auto& brollJson : _data["bRolls"]) {
+        if (_data.contains("brolls") && _data["brolls"].is_array()) {
+            for (const auto& brollJson : _data["brolls"]) {
                 bRolls.emplace_back(brollJson);
             }
         }
@@ -967,14 +967,14 @@ struct ExtendedProjectScene {
         }
         
         // 时间线数组 - 使用真实的序列化
-        result["aRolls"] = nlohmann::json::array();
+        result["arolls"] = nlohmann::json::array();
         for (const auto& aroll : aRolls) {
-            result["aRolls"].push_back(aroll.toJson());
+            result["arolls"].push_back(aroll.toJson());
         }
         
-        result["bRolls"] = nlohmann::json::array();
+        result["brolls"] = nlohmann::json::array();
         for (const auto& broll : bRolls) {
-            result["bRolls"].push_back(broll.toJson());
+            result["brolls"].push_back(broll.toJson());
         }
         
         result["voiceOvers"] = nlohmann::json::array();
@@ -1006,7 +1006,7 @@ struct ExtendedProjectScene {
         
         // 其他字段
         if (transcriptModified.has_value()) result["transcriptModified"] = transcriptModified.value();
-        if (brollShorterPolicyKey.has_value()) result["brollShorterPolicyKey"] = brollShorterPolicyKey.value();
+        result["brollShorterPolicyKey"] = brollShorterPolicyKey;
         if (bgmVolume.has_value()) result["bgmVolume"] = bgmVolume.value();
         
         // 资产 - 使用真实的序列化
@@ -1085,8 +1085,8 @@ struct ExtendedProject {
     std::string ownerUuid;
     StatusEnum status{StatusEnum::ACTIVE};
     std::optional<std::string> padColor;
-    std::optional<int> videoFormat;
-    std::optional<int> brollShorterPolicyKey;
+    int videoFormat{0};
+    int brollShorterPolicyKey{0};
     std::optional<bool> syntheticAll;
     int version{1};
     
@@ -1110,12 +1110,8 @@ struct ExtendedProject {
         if (padColor.has_value()) {
             result["padColor"] = padColor.value();
         }
-        if (videoFormat.has_value()) {
-            result["videoFormat"] = videoFormat.value();
-        }
-        if (brollShorterPolicyKey.has_value()) {
-            result["brollShorterPolicyKey"] = brollShorterPolicyKey.value();
-        }
+        result["videoFormat"] = videoFormat;
+        result["brollShorterPolicyKey"] = brollShorterPolicyKey;
         if (syntheticAll.has_value()) {
             result["syntheticAll"] = syntheticAll.value();
         }
@@ -1139,8 +1135,8 @@ struct ExtendedProjectAndScenesVo {
     // 新增字段匹配 Java ProjectAndScenesVo
     bool syntheticAll{false};
     std::optional<std::string> padColor;
-    std::optional<std::string> videoFormat;
-    std::optional<std::string> brollShorterPolicyKey;
+    int videoFormat{0};
+    int brollShorterPolicyKey{0};
     
     // Style 字段
     std::optional<json> text; // 文本样式
@@ -1202,10 +1198,10 @@ struct ExtendedProjectAndScenesVo {
                 padColor = data["padColor"].get<std::string>();
             }
             if (data.contains("videoFormat")) {
-                videoFormat = data["videoFormat"].get<std::string>();
+                videoFormat = data["videoFormat"].get<int>();
             }
             if (data.contains("brollShorterPolicyKey")) {
-                brollShorterPolicyKey = data["brollShorterPolicyKey"].get<std::string>();
+                brollShorterPolicyKey = data["brollShorterPolicyKey"].get<int>();
             }
             
             // Style 字段
@@ -1266,8 +1262,8 @@ struct ExtendedProjectAndScenesVo {
             // 新增字段
             result["syntheticAll"] = syntheticAll;
             if (padColor.has_value()) result["padColor"] = padColor.value();
-            if (videoFormat.has_value()) result["videoFormat"] = videoFormat.value();
-            if (brollShorterPolicyKey.has_value()) result["brollShorterPolicyKey"] = brollShorterPolicyKey.value();
+            result["videoFormat"] = videoFormat;
+            result["brollShorterPolicyKey"] = brollShorterPolicyKey;
             
             // Style 字段
             if (text.has_value()) result["text"] = text.value();

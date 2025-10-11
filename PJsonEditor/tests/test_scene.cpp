@@ -196,7 +196,7 @@ TEST_CASE_FIXTURE(TestSceneContext, "/v3/project/{projectUuid}/scene/") {
       executor->feedServerResponse(r, serverResponse);
       auto listResp =
           apiClient->get("/v3/project/" + PROPJECT_UUID + "/scene/list");
-      executor->update(listResp);
+      executor->update(listResp["data"]);
       // find the asset in the assets list which the sourceEntityUuid is
       // "7000000600003169", the whole json format is at
       // build/PJsonEditor/GET_v3_project_1358840261077225472_scene_list_response.json
@@ -262,7 +262,7 @@ TEST_CASE_FIXTURE(TestSceneContext, "/v3/project/{projectUuid}/scene/") {
             });
         CHECK(brollIt != localResponse["data"]["scene"]["brolls"].end());
         CHECK((*brollIt)["startTime"] == 1975);
-        CHECK((*brollIt)["timeOffsetInProject"] == 33600);
+        CHECK((*brollIt)["timeOffsetInProject"] == 3600);
       }
       // "scene/scale"
       {

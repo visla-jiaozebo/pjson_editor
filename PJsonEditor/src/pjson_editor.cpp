@@ -112,7 +112,7 @@ static std::vector<Route> routes = {
 PJsonEditor::PJsonEditor(const nlohmann::json &scene_list_resp) {
   controller = std::make_unique<ExtendedControllerAPI>();
   dataStore = std::make_shared<ExtendedDataStore>();
-  update(scene_list_resp);
+  update(scene_list_resp["data"]);
   controller->setDataStore(dataStore);
 }
 
