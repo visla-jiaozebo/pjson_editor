@@ -691,14 +691,22 @@ struct SceneScale {
 };
 
 // BGM structure
-struct ProjectBgm {
-    ProjectBgm() = default;
-    ProjectBgm(const nlohmann::json& bgmJson) {
-        if (bgmJson.contains("uuid")) {
-            uuid = bgmJson["uuid"].get<std::string>();
-        }
+// BGM V2 structure matching Java BgmV2
+struct BgmV2 {
+    BgmV2() = default;
+    BgmV2(const nlohmann::json& bgmJson) {
         if (bgmJson.contains("timelineUuid")) {
-            uuid = bgmJson["timelineUuid"].get<std::string>();
+            timelineUuid = bgmJson["timelineUuid"].get<std::string>();
+        }
+        // Support legacy uuid field for backward compatibility
+        if (bgmJson.contains("uuid") && timelineUuid.empty()) {
+            timelineUuid = bgmJson["uuid"].get<std::string>();
+        }
+        if (bgmJson.contains("timeOffsetInProject")) {
+            timeOffsetInProject = bgmJson["timeOffsetInProject"].get<int>();
+        }
+        if (bgmJson.contains("duration")) {
+            duration = bgmJson["duration"].get<int>();
         }
         if (bgmJson.contains("assetUuid") || bgmJson.contains("asset_uuid")) {
             assetUuid = bgmJson.contains("assetUuid") ? 
@@ -711,49 +719,71 @@ struct ProjectBgm {
         if (bgmJson.contains("adjustedBgmLink")) {
             adjustedBgmLink = bgmJson["adjustedBgmLink"].get<std::string>();
         }
-        if (bgmJson.contains("startTime")) {
-            startTime = bgmJson["startTime"].get<int>();
+        if (bgmJson.contains("chorusStart")) {
+            chorusStart = bgmJson["chorusStart"].get<int>();
         }
-        if (bgmJson.contains("duration")) {
-            duration = bgmJson["duration"].get<int>();
+        if (bgmJson.contains("chorusEnd")) {
+            chorusEnd = bgmJson["chorusEnd"].get<int>();
+        }
+        if (bgmJson.contains("mixed")) {
+            mixed = bgmJson["mixed"];
         }
         if (bgmJson.contains("volume")) {
             volume = bgmJson["volume"].get<double>();
         }
-        if (bgmJson.contains("loop")) {
-            loop = bgmJson["loop"].get<bool>();
-        }
     }
     
-    std::string uuid;
-    std::string assetUuid;  // asset_uuid from protobuf
-    std::string assetLink;
-    std::optional<std::string> adjustedBgmLink;
-    int startTime{0};
-    int duration{0};
-    double volume{0.5};
-    bool loop{true};
+    std::string timelineUuid;  // Required - timeline uuid of the bgm
+    std::optional<int> timeOffsetInProject;  // Bgm Time Offset in Project
+    std::optional<int> duration;  // Bgm Timeline Duration
+    std::optional<std::string> assetUuid;  // asset uuid of the bgm
+    std::optional<std::string> assetLink;  // bgm link
+    std::optional<std::string> adjustedBgmLink;  // adjusted bgm link
+    std::optional<int> chorusStart;  // ai: chorus start time
+    std::optional<int> chorusEnd;  // ai: chorus end time
+    std::optional<nlohmann::json> mixed;  // bgm mix settings
+    std::optional<double> volume;
     
     // 添加 toJson 方法用于序列化
     nlohmann::json toJson() const {
         nlohmann::json result;
         
-        result["uuid"] = uuid;
-        result["assetUuid"] = assetUuid;
-        result["assetLink"] = assetLink;
+        result["timelineUuid"] = timelineUuid;
         
+        if (timeOffsetInProject.has_value()) {
+            result["timeOffsetInProject"] = timeOffsetInProject.value();
+        }
+        if (duration.has_value()) {
+            result["duration"] = duration.value();
+        }
+        if (assetUuid.has_value()) {
+            result["assetUuid"] = assetUuid.value();
+        }
+        if (assetLink.has_value()) {
+            result["assetLink"] = assetLink.value();
+        }
         if (adjustedBgmLink.has_value()) {
             result["adjustedBgmLink"] = adjustedBgmLink.value();
         }
-        
-        result["startTime"] = startTime;
-        result["duration"] = duration;
-        result["volume"] = volume;
-        result["loop"] = loop;
+        if (chorusStart.has_value()) {
+            result["chorusStart"] = chorusStart.value();
+        }
+        if (chorusEnd.has_value()) {
+            result["chorusEnd"] = chorusEnd.value();
+        }
+        if (mixed.has_value()) {
+            result["mixed"] = mixed.value();
+        }
+        if (volume.has_value()) {
+            result["volume"] = volume.value();
+        }
         
         return result;
     }
 };
+
+// Legacy alias for backward compatibility
+using ProjectBgm = BgmV2;
 
 // Synthetic voice metadata
 struct SyntheticVoiceMetadata {
@@ -1701,45 +1731,61 @@ struct UpdateProjectScaleReqBody {
 };
 
 // Tier 2 BGM Management request bodies
-struct ProjectBgmAddReqBody {
-    ProjectBgmAddReqBody() = default;
-    ProjectBgmAddReqBody(const nlohmann::json &_data) {
+// BGM V2 Request Bodies matching Java API
+struct BgmV2AddReqBody {
+    BgmV2AddReqBody() = default;
+    BgmV2AddReqBody(const nlohmann::json &_data) {
         if (_data.contains("assetUuid")) assetUuid = _data["assetUuid"];
         if (_data.contains("startSceneIndex")) startSceneIndex = _data["startSceneIndex"];
         if (_data.contains("endSceneIndex")) endSceneIndex = _data["endSceneIndex"];
         if (_data.contains("volume")) volume = _data["volume"];
-        if (_data.contains("loop")) loop = _data["loop"];
+        if (_data.contains("timeOffsetInProject")) timeOffsetInProject = _data["timeOffsetInProject"];
+        if (_data.contains("duration")) duration = _data["duration"];
+        if (_data.contains("chorusStart")) chorusStart = _data["chorusStart"];
+        if (_data.contains("chorusEnd")) chorusEnd = _data["chorusEnd"];
     }
     std::string assetUuid;
-    int startSceneIndex{0};
-    int endSceneIndex{0};
-    double volume{0.5};
-    bool loop{true};
-};
-
-struct ProjectBgmDeleteReqBody {
-    ProjectBgmDeleteReqBody() = default;
-    ProjectBgmDeleteReqBody(const nlohmann::json &_data) {
-        if (_data.contains("timelineUuid")) timelineUuid = _data["timelineUuid"];
-    }
-    std::string timelineUuid;  // 修改为与API一致的参数名
-};
-
-struct ProjectBgmEditReqBody {
-    ProjectBgmEditReqBody() = default;
-    ProjectBgmEditReqBody(const nlohmann::json &_data) {
-        if (_data.contains("bgmUuid")) bgmUuid = _data["bgmUuid"];
-        if (_data.contains("volume")) volume = _data["volume"];
-        if (_data.contains("loop")) loop = _data["loop"];
-        if (_data.contains("startSceneIndex")) startSceneIndex = _data["startSceneIndex"];
-        if (_data.contains("endSceneIndex")) endSceneIndex = _data["endSceneIndex"];
-    }
-    std::string bgmUuid;
-    std::optional<double> volume;
-    std::optional<bool> loop;
     std::optional<int> startSceneIndex;
     std::optional<int> endSceneIndex;
+    std::optional<double> volume;
+    std::optional<int> timeOffsetInProject;
+    std::optional<int> duration;
+    std::optional<int> chorusStart;
+    std::optional<int> chorusEnd;
 };
+
+struct BgmV2DeleteReqBody {
+    BgmV2DeleteReqBody() = default;
+    BgmV2DeleteReqBody(const nlohmann::json &_data) {
+        if (_data.contains("timelineUuid")) timelineUuid = _data["timelineUuid"];
+    }
+    std::string timelineUuid;
+};
+
+struct BgmV2EditReqBody {
+    BgmV2EditReqBody() = default;
+    BgmV2EditReqBody(const nlohmann::json &_data) {
+        if (_data.contains("timelineUuid")) timelineUuid = _data["timelineUuid"];
+        if (_data.contains("volume")) volume = _data["volume"];
+        if (_data.contains("timeOffsetInProject")) timeOffsetInProject = _data["timeOffsetInProject"];
+        if (_data.contains("duration")) duration = _data["duration"];
+        if (_data.contains("chorusStart")) chorusStart = _data["chorusStart"];
+        if (_data.contains("chorusEnd")) chorusEnd = _data["chorusEnd"];
+        if (_data.contains("assetUuid")) assetUuid = _data["assetUuid"];
+    }
+    std::string timelineUuid;
+    std::optional<double> volume;
+    std::optional<int> timeOffsetInProject;
+    std::optional<int> duration;
+    std::optional<int> chorusStart;
+    std::optional<int> chorusEnd;
+    std::optional<std::string> assetUuid;
+};
+
+// Legacy aliases for backward compatibility
+using ProjectBgmAddReqBody = BgmV2AddReqBody;
+using ProjectBgmDeleteReqBody = BgmV2DeleteReqBody;
+using ProjectBgmEditReqBody = BgmV2EditReqBody;
 
 struct PsSceneTimelineVolumeReqBody {
     PsSceneTimelineVolumeReqBody() = default;

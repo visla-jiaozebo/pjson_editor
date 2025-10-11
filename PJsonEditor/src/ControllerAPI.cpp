@@ -2121,24 +2121,47 @@ ExtendedProjectScene ExtendedControllerAPI::assembleSceneAndTimelines(const Exte
 
 // Tier 2 BGM Management API implementations
 ApiResult ExtendedControllerAPI::addBgm(const ProjectBgmAddReqBody& reqBody) {
-    ProjectBgm newBgm;
-    newBgm.uuid = genUuid();
+    ProjectBgm newBgm;  // Using alias, actually BgmV2
+    newBgm.timelineUuid = genUuid();
+    newBgm.assetUuid = reqBody.assetUuid;
     newBgm.assetLink = reqBody.assetUuid; // Using assetUuid as link for simplicity
-    newBgm.volume = reqBody.volume;
-    newBgm.loop = reqBody.loop;
+    if (reqBody.volume.has_value()) {
+        newBgm.volume = reqBody.volume.value();
+    }
+    if (reqBody.timeOffsetInProject.has_value()) {
+        newBgm.timeOffsetInProject = reqBody.timeOffsetInProject.value();
+    }
+    if (reqBody.duration.has_value()) {
+        newBgm.duration = reqBody.duration.value();
+    }
+    if (reqBody.chorusStart.has_value()) {
+        newBgm.chorusStart = reqBody.chorusStart.value();
+    }
+    if (reqBody.chorusEnd.has_value()) {
+        newBgm.chorusEnd = reqBody.chorusEnd.value();
+    }
     
     nlohmann::json patch = nlohmann::json::array();
+    nlohmann::json bgmValue = {
+        {"timelineUuid", newBgm.timelineUuid},
+        {"assetUuid", newBgm.assetUuid.value_or("")},
+        {"assetLink", newBgm.assetLink.value_or("")}
+    };
+    
+    if (newBgm.volume.has_value()) bgmValue["volume"] = newBgm.volume.value();
+    if (newBgm.timeOffsetInProject.has_value()) bgmValue["timeOffsetInProject"] = newBgm.timeOffsetInProject.value();
+    if (newBgm.duration.has_value()) bgmValue["duration"] = newBgm.duration.value();
+    if (newBgm.chorusStart.has_value()) bgmValue["chorusStart"] = newBgm.chorusStart.value();
+    if (newBgm.chorusEnd.has_value()) bgmValue["chorusEnd"] = newBgm.chorusEnd.value();
+    
+    // Include scene index info if provided
+    if (reqBody.startSceneIndex.has_value()) bgmValue["startSceneIndex"] = reqBody.startSceneIndex.value();
+    if (reqBody.endSceneIndex.has_value()) bgmValue["endSceneIndex"] = reqBody.endSceneIndex.value();
+    
     patch.push_back({
         {"op", "add"},
         {"path", "/bgms/-"},
-        {"value", {
-            {"uuid", newBgm.uuid},
-            {"assetLink", newBgm.assetLink},
-            {"volume", newBgm.volume},
-            {"loop", newBgm.loop},
-            {"startSceneIndex", reqBody.startSceneIndex},
-            {"endSceneIndex", reqBody.endSceneIndex}
-        }}
+        {"value", bgmValue}
     });
     
     // Convert to JSON data equivalent for API compatibility  
@@ -2178,7 +2201,7 @@ ApiResult ExtendedControllerAPI::deleteBgm(const ProjectBgmDeleteReqBody& reqBod
     // Step 1: Find the BGM to delete
     auto bgmIt = std::find_if(bgms.begin(), bgms.end(),
         [&reqBody](const ProjectBgm& bgm) {
-            return bgm.uuid == reqBody.timelineUuid;  // 修改为使用timelineUuid
+            return bgm.timelineUuid == reqBody.timelineUuid;  // Using BgmV2 timelineUuid field
         });
     
     if (bgmIt == bgms.end()) {
@@ -2186,7 +2209,7 @@ ApiResult ExtendedControllerAPI::deleteBgm(const ProjectBgmDeleteReqBody& reqBod
     }
     
     // Step 2: Find and remove associated assets
-    std::string bgmAssetUuid = bgmIt->assetUuid;
+    std::string bgmAssetUuid = bgmIt->assetUuid.value_or("");
     std::vector<std::string> assetsToRemove;
     
     // Find assets that are linked to this BGM by assetUuid
@@ -2230,35 +2253,51 @@ ApiResult ExtendedControllerAPI::deleteBgm(const ProjectBgmDeleteReqBody& reqBod
 ApiResult ExtendedControllerAPI::editBgm(const ProjectBgmEditReqBody& reqBody) {
     nlohmann::json patch = nlohmann::json::array();
     
-    if (reqBody.volume) {
+    if (reqBody.volume.has_value()) {
         patch.push_back({
             {"op", "replace"},
-            {"path", "/bgms/[uuid=" + reqBody.bgmUuid + "]/volume"},
-            {"value", *reqBody.volume}
+            {"path", "/bgms/[timelineUuid=" + reqBody.timelineUuid + "]/volume"},
+            {"value", reqBody.volume.value()}
         });
     }
     
-    if (reqBody.loop) {
+    if (reqBody.timeOffsetInProject.has_value()) {
         patch.push_back({
             {"op", "replace"},
-            {"path", "/bgms/[uuid=" + reqBody.bgmUuid + "]/loop"},
-            {"value", *reqBody.loop}
+            {"path", "/bgms/[timelineUuid=" + reqBody.timelineUuid + "]/timeOffsetInProject"},
+            {"value", reqBody.timeOffsetInProject.value()}
         });
     }
     
-    if (reqBody.startSceneIndex) {
+    if (reqBody.duration.has_value()) {
         patch.push_back({
             {"op", "replace"},
-            {"path", "/bgms/[uuid=" + reqBody.bgmUuid + "]/startSceneIndex"},
-            {"value", *reqBody.startSceneIndex}
+            {"path", "/bgms/[timelineUuid=" + reqBody.timelineUuid + "]/duration"},
+            {"value", reqBody.duration.value()}
         });
     }
     
-    if (reqBody.endSceneIndex) {
+    if (reqBody.chorusStart.has_value()) {
         patch.push_back({
             {"op", "replace"},
-            {"path", "/bgms/[uuid=" + reqBody.bgmUuid + "]/endSceneIndex"},
-            {"value", *reqBody.endSceneIndex}
+            {"path", "/bgms/[timelineUuid=" + reqBody.timelineUuid + "]/chorusStart"},
+            {"value", reqBody.chorusStart.value()}
+        });
+    }
+    
+    if (reqBody.chorusEnd.has_value()) {
+        patch.push_back({
+            {"op", "replace"},
+            {"path", "/bgms/[timelineUuid=" + reqBody.timelineUuid + "]/chorusEnd"},
+            {"value", reqBody.chorusEnd.value()}
+        });
+    }
+    
+    if (reqBody.assetUuid.has_value()) {
+        patch.push_back({
+            {"op", "replace"},
+            {"path", "/bgms/[timelineUuid=" + reqBody.timelineUuid + "]/assetUuid"},
+            {"value", reqBody.assetUuid.value()}
         });
     }
     
