@@ -18,7 +18,7 @@ const ExtendedProjectAndScenesVo& ExtendedDataStore::getProject() const {
 
 ExtendedProjectScene* ExtendedDataStore::findScene(const std::string& sceneUuid) {
     for (auto& scene : project->scenes) {
-        if (scene.uuid == sceneUuid) {
+        if (scene.sceneUuid == sceneUuid) {
             return &scene;
         }
     }
@@ -46,7 +46,7 @@ void ExtendedDataStore::recomputeOffsets() {
             voiceOver.timeOffsetInProject = totalOffset + voiceOver.timeOffsetInProject;
         }
         
-        totalOffset += scene.duration;
+        totalOffset += scene.duration.value_or(0);
     }
     
     // Also update project-level timelines 
@@ -54,11 +54,11 @@ void ExtendedDataStore::recomputeOffsets() {
     for (const auto& scene : project->scenes) {
         // Update all timelines that belong to this scene
         for (auto& timeline : project->timelines) {
-            if (timeline.sceneUuid == scene.uuid) {
+            if (timeline.sceneUuid == scene.sceneUuid) {
                 timeline.timeOffsetInProject = totalOffset + timeline.timeOffsetInScene;
             }
         }
-        totalOffset += scene.duration;
+        totalOffset += scene.duration.value_or(0);
     }
     
     // Update BGM durations to match total project duration

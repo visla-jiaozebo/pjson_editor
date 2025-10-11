@@ -140,6 +140,58 @@ struct ExtendedTimeline {
     // Internal IDs (for patch generation)
     std::optional<std::string> id;
     std::optional<std::string> assetId;
+    
+    // 添加 toJson 方法用于序列化
+    json toJson() const {
+        json result;
+        
+        result["uuid"] = uuid;
+        result["sceneUuid"] = sceneUuid;
+        result["projectUuid"] = projectUuid;
+        result["assetUuid"] = assetUuid;
+        
+        // 分类枚举转换
+        switch (category) {
+            case ProjectTimelineCategoryEnum::MAIN_STORY: result["category"] = "MAIN_STORY"; break;
+            case ProjectTimelineCategoryEnum::INTRO: result["category"] = "INTRO"; break;
+            case ProjectTimelineCategoryEnum::OUTRO: result["category"] = "OUTRO"; break;
+            case ProjectTimelineCategoryEnum::FOOTAGE: result["category"] = "FOOTAGE"; break;
+            case ProjectTimelineCategoryEnum::RECORD_VOICE_OVER: result["category"] = "RECORD_VOICE_OVER"; break;
+            case ProjectTimelineCategoryEnum::SYNTHETIC_VOICE_OVER: result["category"] = "SYNTHETIC_VOICE_OVER"; break;
+            case ProjectTimelineCategoryEnum::STORY_AUDIO: result["category"] = "STORY_AUDIO"; break;
+            case ProjectTimelineCategoryEnum::NARRATION_VOICE_OVER: result["category"] = "NARRATION_VOICE_OVER"; break;
+            case ProjectTimelineCategoryEnum::AROLL: result["category"] = "AROLL"; break;
+            case ProjectTimelineCategoryEnum::BROLL: result["category"] = "BROLL"; break;
+            case ProjectTimelineCategoryEnum::VOICE_OVER: result["category"] = "VOICE_OVER"; break;
+            case ProjectTimelineCategoryEnum::BACKGROUND_MUSIC: result["category"] = "BACKGROUND_MUSIC"; break;
+        }
+        
+        result["timeOffsetInScene"] = timeOffsetInScene;
+        result["timeOffsetInProject"] = timeOffsetInProject;
+        result["duration"] = duration;
+        result["startTime"] = startTime;
+        result["endTime"] = endTime;
+        result["volume"] = volume;
+        result["mute"] = mute;
+        result["speed"] = speed;
+        result["blendMode"] = blendMode;
+        
+        // Optional 字段
+        if (cropData.has_value()) {
+            result["cropData"] = cropData.value();
+        }
+        if (kenburnsData.has_value()) {
+            result["kenburnsData"] = kenburnsData.value();
+        }
+        if (id.has_value()) {
+            result["id"] = id.value();
+        }
+        if (assetId.has_value()) {
+            result["assetId"] = assetId.value();
+        }
+        
+        return result;
+    }
 };
 
 // Voice over specific structure
@@ -227,6 +279,48 @@ struct VoiceOver {
     std::optional<double> scale;
     std::optional<json> position;
     bool usePosition{false};
+    
+    // 添加 toJson 方法用于序列化
+    nlohmann::json toJson() const {
+        nlohmann::json result;
+        
+        result["uuid"] = uuid;
+        result["assetUuid"] = assetUuid;
+        result["sceneUuid"] = sceneUuid;
+        result["projectUuid"] = projectUuid;
+        
+        // 分类枚举转换
+        switch (category) {
+            case ProjectTimelineCategoryEnum::VOICE_OVER: result["category"] = "VOICE_OVER"; break;
+            case ProjectTimelineCategoryEnum::NARRATION_VOICE_OVER: result["category"] = "NARRATION_VOICE_OVER"; break;
+            case ProjectTimelineCategoryEnum::SYNTHETIC_VOICE_OVER: result["category"] = "SYNTHETIC_VOICE_OVER"; break;
+            case ProjectTimelineCategoryEnum::RECORD_VOICE_OVER: result["category"] = "RECORD_VOICE_OVER"; break;
+            default: result["category"] = "VOICE_OVER"; break;
+        }
+        
+        result["timeOffsetInProject"] = timeOffsetInProject;
+        result["duration"] = duration;
+        result["startTime"] = startTime;
+        result["endTime"] = endTime;
+        result["volume"] = volume;
+        result["audioLink"] = audioLink;
+        result["voiceUuid"] = voiceUuid;
+        result["audioOnly"] = audioOnly;
+        result["usePosition"] = usePosition;
+        
+        // Optional 字段
+        if (shape.has_value()) {
+            result["shape"] = shape.value();
+        }
+        if (scale.has_value()) {
+            result["scale"] = scale.value();
+        }
+        if (position.has_value()) {
+            result["position"] = position.value();
+        }
+        
+        return result;
+    }
 };
 
 // Transcript structures
@@ -237,6 +331,14 @@ struct TranscriptItemAlternative {
     TranscriptItemAlternative() = default;
     TranscriptItemAlternative(const std::string& content, const std::string& confidence)
         : content(content), confidence(confidence) {}
+
+    // 添加 toJson 方法用于序列化
+    nlohmann::json toJson() const {
+        nlohmann::json result;
+        result["content"] = content;
+        result["confidence"] = confidence;
+        return result;
+    }
 };
 
 struct TranscriptItem {
@@ -280,6 +382,27 @@ struct TranscriptItem {
     double getDuration() const {
         return end_time - start_time;
     }
+
+    // 添加 toJson 方法用于序列化
+    nlohmann::json toJson() const {
+        nlohmann::json result;
+        
+        result["content"] = content;
+        result["start_time"] = start_time;
+        result["end_time"] = end_time;
+        result["type"] = type;
+        
+        if (sentence_end.has_value()) {
+            result["sentence_end"] = sentence_end.value();
+        }
+        
+        result["alternatives"] = nlohmann::json::array();
+        for (const auto& alternative : alternatives) {
+            result["alternatives"].push_back(alternative.toJson());
+        }
+        
+        return result;
+    }
 };
 
 struct SceneTranscript {
@@ -310,6 +433,24 @@ struct SceneTranscript {
         bool voiceRedo{false};
         bool recommendFootageRedo{false};
     } modificationStatus;
+
+    // 添加 toJson 方法用于序列化
+    nlohmann::json toJson() const {
+        nlohmann::json result;
+        
+        result["text"] = text;
+        result["modified"] = modified;
+        result["duration"] = duration;
+        
+        result["items"] = nlohmann::json::array();
+        for (const auto& item : items) {
+            result["items"].push_back(item.toJson());
+        }
+        
+        result["originalKeywords"] = originalKeywords;
+        
+        return result;
+    }
 };
 
 // Asset structures
@@ -381,6 +522,46 @@ struct ProjectSceneAsset {
     std::optional<int> width;
     std::optional<int> height;
     std::optional<std::string> format;
+    
+    // 添加 toJson 方法用于序列化
+    nlohmann::json toJson() const {
+        nlohmann::json result;
+        
+        result["assetId"] = assetId;
+        result["assetUuid"] = uuid;
+        result["assetLink"] = assetLink;
+        result["assetType"] = assetType;
+        result["duration"] = duration;
+        result["newMedia"] = newMedia;
+        
+        // Optional 字段
+        if (audioLink.has_value()) {
+            result["audioLink"] = audioLink.value();
+        }
+        if (coverLink.has_value()) {
+            result["coverLink"] = coverLink.value();
+        }
+        if (mediaId.has_value()) {
+            result["mediaId"] = mediaId.value();
+        }
+        if (voiceId.has_value()) {
+            result["voiceId"] = voiceId.value();
+        }
+        if (aiTags.has_value()) {
+            result["aiTags"] = aiTags.value();
+        }
+        if (width.has_value()) {
+            result["width"] = width.value();
+        }
+        if (height.has_value()) {
+            result["height"] = height.value();
+        }
+        if (format.has_value()) {
+            result["format"] = format.value();
+        }
+        
+        return result;
+    }
 };
 
 // Layer structures (simplified union approach)
@@ -390,6 +571,19 @@ struct BaseLayer {
     int timeOffsetInScene{0};
     int duration{0};
     json data; // type-specific data as JSON
+    
+    // 添加 toJson 方法用于序列化
+    nlohmann::json toJson() const {
+        nlohmann::json result;
+        
+        result["uuid"] = uuid;
+        result["type"] = type;
+        result["timeOffsetInScene"] = timeOffsetInScene;
+        result["duration"] = duration;
+        result["data"] = data;
+        
+        return result;
+    }
 };
 
 // Transition structure
@@ -414,6 +608,24 @@ struct SceneTransition {
     int duration{0};
     std::optional<json> easing;
     std::optional<json> properties;
+    
+    // 添加 toJson 方法用于序列化
+    nlohmann::json toJson() const {
+        nlohmann::json result;
+        
+        result["type"] = type;
+        result["duration"] = duration;
+        
+        // Optional 字段
+        if (easing.has_value()) {
+            result["easing"] = easing.value();
+        }
+        if (properties.has_value()) {
+            result["properties"] = properties.value();
+        }
+        
+        return result;
+    }
 };
 
 // Text on screen structure
@@ -425,8 +637,35 @@ struct SubtitleText {
 };
 
 struct TextOnScreen {
+    TextOnScreen() = default;
+    TextOnScreen(const nlohmann::json& data) {
+        if (data.contains("subtitleText") && !data["subtitleText"].is_null()) {
+            // TODO: 如果有 SubtitleText 构造函数，则启用下面的代码
+            // subtitleText = SubtitleText(data["subtitleText"]);
+        }
+        if (data.contains("additionalTextLayers")) {
+            additionalTextLayers = data["additionalTextLayers"];
+        }
+    }
+    
     std::optional<SubtitleText> subtitleText;
     std::optional<json> additionalTextLayers;
+    
+    // 添加 toJson 方法用于序列化
+    nlohmann::json toJson() const {
+        nlohmann::json result;
+        
+        // 注意：SubtitleText 目前没有toJson方法，暂时跳过序列化
+        // if (subtitleText.has_value()) {
+        //     result["subtitleText"] = subtitleText->toJson();
+        // }
+        
+        if (additionalTextLayers.has_value()) {
+            result["additionalTextLayers"] = additionalTextLayers.value();
+        }
+        
+        return result;
+    }
 };
 
 // Volume configuration
@@ -494,6 +733,26 @@ struct ProjectBgm {
     int duration{0};
     double volume{0.5};
     bool loop{true};
+    
+    // 添加 toJson 方法用于序列化
+    nlohmann::json toJson() const {
+        nlohmann::json result;
+        
+        result["uuid"] = uuid;
+        result["assetUuid"] = assetUuid;
+        result["assetLink"] = assetLink;
+        
+        if (adjustedBgmLink.has_value()) {
+            result["adjustedBgmLink"] = adjustedBgmLink.value();
+        }
+        
+        result["startTime"] = startTime;
+        result["duration"] = duration;
+        result["volume"] = volume;
+        result["loop"] = loop;
+        
+        return result;
+    }
 };
 
 // Synthetic voice metadata
@@ -537,59 +796,248 @@ struct SyntheticVoiceMetadata {
     std::string language;
     std::string gender;
     std::optional<json> additionalParams;
+    
+    // 添加 toJson 方法用于序列化
+    nlohmann::json toJson() const {
+        nlohmann::json result;
+        
+        result["voiceId"] = voiceId;
+        result["voiceName"] = voiceName;
+        result["language"] = language;
+        result["gender"] = gender;
+        
+        if (additionalParams.has_value()) {
+            // 展开 additionalParams 到结果中
+            for (const auto& [key, value] : additionalParams.value().items()) {
+                result[key] = value;
+            }
+        }
+        
+        return result;
+    }
 };
 
 // Enhanced scene structure
 struct ExtendedProjectScene {
-    ExtendedProjectScene() = default;
-    ExtendedProjectScene(const nlohmann::json &_data) {
-        if (_data.contains("sceneUuid")) uuid = _data["sceneUuid"];
-        if (_data.contains("projectUuid")) projectUuid = _data["projectUuid"];
-        if (_data.contains("name")) name = _data["name"];
-        if (_data.contains("sceneType")) sceneType = _data["sceneType"].get<SceneTypeEnum>();
-        if (_data.contains("duration")) duration = _data["duration"];
-        if (_data.contains("timeOffsetInProject")) timeOffsetInProject = _data["timeOffsetInProject"];
-        if (_data.contains("pauseTime")) pauseTime = _data["pauseTime"];
-        if (_data.contains("audioFlag")) audioFlag = _data["audioFlag"];
-        
-        // Transcript
-        if (_data.contains("transcript") && !_data["transcript"].is_null()) {
-            transcript = SceneTranscript(_data["transcript"]);
-        }
-    };
-    std::string uuid;
+    // 基本字段匹配 Java ProjectSceneVo
+    std::string sceneUuid;  // 主字段名匹配 Java
     std::string projectUuid;
     std::string name;
     SceneTypeEnum sceneType{SceneTypeEnum::DEFAULT};
-    int duration{0};
-    int timeOffsetInProject{0};
-    std::optional<int> pauseTime;
-    int audioFlag{0};
+    std::optional<int> timeOffsetInProject;
+    std::optional<int> duration;
+    std::optional<int> audioFlag;
+    std::optional<int> pauseTime{0};
     
-    // Content
+    // Transcript 字段
     std::optional<SceneTranscript> transcript;
     
-    // Timeline categories (replacing simple timelines vector)
+    // 时间线分类（匹配 Java ProjectSceneVo）
     std::vector<ExtendedTimeline> aRolls;
     std::vector<ExtendedTimeline> bRolls;
     std::vector<VoiceOver> voiceOvers;
     
-    // Additional scene elements
-    std::vector<BaseLayer> layers;
+    // 图层和效果（匹配 Java ProjectSceneVo）
+    std::vector<BaseLayer> layers;  // 新图层系统
     std::vector<SceneTransition> transitions;
     std::optional<TextOnScreen> textOnScreen;
-    std::optional<SceneVolumeConf> audio;
-    std::optional<SceneEffect> effect;
-    std::optional<SceneScale> scale;
     
-    // Deprecated/compatibility fields
-    std::optional<json> deprecatedEffect;
-    std::optional<json> deprecatedScale;
-    std::optional<json> deprecatedAudio;
+    // 已弃用字段（保持兼容性）
+    std::optional<json> effect;     // 已弃用
+    std::optional<json> scale;      // 已弃用
+    std::optional<json> audio;      // 已弃用
+    std::vector<json> layer;        // 已弃用图层
     
-    // Policy and metadata
+    // 转录修改状态
+    std::optional<bool> transcriptModified;
+    
+    // 策略和元数据
     std::optional<int> brollShorterPolicyKey;
     std::optional<double> bgmVolume;
+    
+    // 兼容性字段：场景相关资产
+    std::unordered_map<std::string, ProjectSceneAsset> assets; // key: asset_id
+    
+    // 内部字段（忽略）
+    std::optional<long> id;       // JsonIgnore
+    std::optional<long> projectId; // JsonIgnore
+
+    ExtendedProjectScene() = default;
+    ExtendedProjectScene(const nlohmann::json &_data) {
+        // 基本字段匹配 Java ProjectSceneVo
+        if (_data.contains("sceneUuid")) sceneUuid = _data["sceneUuid"];
+        // 向后兼容：如果 JSON 中使用的是 "uuid"，也能正确解析
+        if (_data.contains("uuid") && !_data.contains("sceneUuid")) sceneUuid = _data["uuid"];
+        
+        if (_data.contains("projectUuid")) projectUuid = _data["projectUuid"];
+        if (_data.contains("name")) name = _data["name"];
+        if (_data.contains("sceneType")) sceneType = _data["sceneType"].get<SceneTypeEnum>();
+        if (_data.contains("timeOffsetInProject")) timeOffsetInProject = _data["timeOffsetInProject"];
+        if (_data.contains("duration")) duration = _data["duration"];
+        if (_data.contains("audioFlag")) audioFlag = _data["audioFlag"];
+        if (_data.contains("pauseTime")) pauseTime = _data["pauseTime"];
+        
+        // Transcript 字段
+        if (_data.contains("transcript") && !_data["transcript"].is_null()) {
+            transcript = SceneTranscript(_data["transcript"]);
+        }
+        
+        // 时间线字段
+        if (_data.contains("aRolls") && _data["aRolls"].is_array()) {
+            for (const auto& arollJson : _data["aRolls"]) {
+                aRolls.emplace_back(arollJson);
+            }
+        }
+        if (_data.contains("bRolls") && _data["bRolls"].is_array()) {
+            for (const auto& brollJson : _data["bRolls"]) {
+                bRolls.emplace_back(brollJson);
+            }
+        }
+        if (_data.contains("voiceOvers") && _data["voiceOvers"].is_array()) {
+            for (const auto& voJson : _data["voiceOvers"]) {
+                voiceOvers.emplace_back(voJson);
+            }
+        }
+        
+        // 图层和效果字段
+        if (_data.contains("layers") && _data["layers"].is_array()) {
+            // TODO: 解析 layers
+        }
+        if (_data.contains("transitions") && _data["transitions"].is_array()) {
+            for (const auto& transJson : _data["transitions"]) {
+                transitions.emplace_back(transJson);
+            }
+        }
+        if (_data.contains("textOnScreen") && !_data["textOnScreen"].is_null()) {
+            textOnScreen = TextOnScreen(_data["textOnScreen"]);
+        }
+        
+        // 已弃用字段
+        if (_data.contains("effect")) {
+            effect = _data["effect"];
+        }
+        if (_data.contains("scale")) {
+            scale = _data["scale"];
+        }
+        if (_data.contains("audio")) {
+            audio = _data["audio"];
+        }
+        if (_data.contains("layer") && _data["layer"].is_array()) {
+            layer = _data["layer"];
+        }
+        
+        // 其他字段
+        if (_data.contains("transcriptModified")) {
+            transcriptModified = _data["transcriptModified"];
+        }
+        if (_data.contains("brollShorterPolicyKey")) {
+            brollShorterPolicyKey = _data["brollShorterPolicyKey"];
+        }
+        if (_data.contains("bgmVolume")) {
+            bgmVolume = _data["bgmVolume"];
+        }
+        
+        // 资产字段
+        if (_data.contains("assets") && _data["assets"].is_object()) {
+            for (const auto& [assetId, assetJson] : _data["assets"].items()) {
+                assets[assetId] = ProjectSceneAsset(assetJson);
+            }
+        }
+    };
+
+    // 添加 toJson 方法用于序列化
+    nlohmann::json toJson() const {
+        nlohmann::json result;
+        
+        // 基本字段
+        result["sceneUuid"] = sceneUuid;
+        result["projectUuid"] = projectUuid;
+        result["name"] = name;
+        result["sceneType"] = static_cast<int>(sceneType);
+        
+        // Optional 字段
+        if (timeOffsetInProject.has_value()) result["timeOffsetInProject"] = timeOffsetInProject.value();
+        if (duration.has_value()) result["duration"] = duration.value();
+        if (audioFlag.has_value()) result["audioFlag"] = audioFlag.value();
+        if (pauseTime.has_value()) result["pauseTime"] = pauseTime.value();
+        
+        // Transcript 字段 - 简化版
+        if (transcript.has_value()) {
+            result["transcript"] = transcript->toJson();
+        }
+        
+        // 时间线数组 - 使用真实的序列化
+        result["aRolls"] = nlohmann::json::array();
+        for (const auto& aroll : aRolls) {
+            result["aRolls"].push_back(aroll.toJson());
+        }
+        
+        result["bRolls"] = nlohmann::json::array();
+        for (const auto& broll : bRolls) {
+            result["bRolls"].push_back(broll.toJson());
+        }
+        
+        result["voiceOvers"] = nlohmann::json::array();
+        for (const auto& voiceOver : voiceOvers) {
+            result["voiceOvers"].push_back(voiceOver.toJson());
+        }
+        
+        // 图层和效果 - 使用真实的序列化
+        result["layers"] = nlohmann::json::array();
+        for (const auto& layer : layers) {
+            result["layers"].push_back(layer.toJson());
+        }
+        
+        result["transitions"] = nlohmann::json::array();
+        for (const auto& transition : transitions) {
+            result["transitions"].push_back(transition.toJson());
+        }
+        
+        // TextOnScreen 字段 - 使用真实的序列化
+        if (textOnScreen.has_value()) {
+            result["textOnScreen"] = textOnScreen->toJson();
+        }
+        
+        // 已弃用字段
+        if (effect.has_value()) result["effect"] = effect.value();
+        if (scale.has_value()) result["scale"] = scale.value();
+        if (audio.has_value()) result["audio"] = audio.value();
+        if (!layer.empty()) result["layer"] = layer;
+        
+        // 其他字段
+        if (transcriptModified.has_value()) result["transcriptModified"] = transcriptModified.value();
+        if (brollShorterPolicyKey.has_value()) result["brollShorterPolicyKey"] = brollShorterPolicyKey.value();
+        if (bgmVolume.has_value()) result["bgmVolume"] = bgmVolume.value();
+        
+        // 资产 - 使用真实的序列化
+        if (!assets.empty()) {
+            result["assets"] = nlohmann::json::object();
+            for (const auto& [assetId, asset] : assets) {
+                result["assets"][assetId] = asset.toJson();
+            }
+        }
+        
+        return result;
+    }
+    
+    // Getter 方法匹配 Java 行为
+    std::string getSceneUuid() const {
+        return id.has_value() ? std::to_string(id.value()) : sceneUuid;
+    }
+    
+    std::string getProjectUuid() const {
+        return projectId.has_value() ? std::to_string(projectId.value()) : projectUuid;
+    }
+    
+    // 向后兼容性方法：获取 uuid（原字段名）
+    std::string getUuid() const {
+        return getSceneUuid();
+    }
+    
+    // 向后兼容性方法：设置 uuid（原字段名）
+    void setUuid(const std::string& value) {
+        sceneUuid = value;
+    }
     
     // Legacy compatibility - unified timelines
     std::vector<ExtendedTimeline> timelines; // computed from aRolls + bRolls + voiceOvers
@@ -598,6 +1046,40 @@ struct ExtendedProjectScene {
 // Enhanced project structure
 // Project metadata structure
 struct ExtendedProject {
+    ExtendedProject() = default;
+    ExtendedProject(const nlohmann::json& data) {
+        if (data.contains("uuid")) {
+            uuid = data["uuid"].get<std::string>();
+        }
+        if (data.contains("name")) {
+            name = data["name"].get<std::string>();
+        }
+        if (data.contains("ownerUuid")) {
+            ownerUuid = data["ownerUuid"].get<std::string>();
+        }
+        if (data.contains("status")) {
+            std::string statusStr = data["status"].get<std::string>();
+            if (statusStr == "ACTIVE") status = StatusEnum::ACTIVE;
+            else if (statusStr == "DELETED") status = StatusEnum::DELETED;
+            else if (statusStr == "DRAFT") status = StatusEnum::DRAFT;
+        }
+        if (data.contains("padColor")) {
+            padColor = data["padColor"].get<std::string>();
+        }
+        if (data.contains("videoFormat")) {
+            videoFormat = data["videoFormat"].get<int>();
+        }
+        if (data.contains("brollShorterPolicyKey")) {
+            brollShorterPolicyKey = data["brollShorterPolicyKey"].get<int>();
+        }
+        if (data.contains("syntheticAll")) {
+            syntheticAll = data["syntheticAll"].get<bool>();
+        }
+        if (data.contains("version")) {
+            version = data["version"].get<int>();
+        }
+    }
+    
     std::string uuid;
     std::string name;
     std::string ownerUuid;
@@ -607,30 +1089,252 @@ struct ExtendedProject {
     std::optional<int> brollShorterPolicyKey;
     std::optional<bool> syntheticAll;
     int version{1};
+    
+    // 添加 toJson 方法用于序列化
+    nlohmann::json toJson() const {
+        nlohmann::json result;
+        
+        result["uuid"] = uuid;
+        result["name"] = name;
+        result["ownerUuid"] = ownerUuid;
+        result["version"] = version;
+        
+        // 状态转换
+        switch (status) {
+            case StatusEnum::ACTIVE: result["status"] = "ACTIVE"; break;
+            case StatusEnum::DELETED: result["status"] = "DELETED"; break;
+            case StatusEnum::DRAFT: result["status"] = "DRAFT"; break;
+        }
+        
+        // Optional 字段
+        if (padColor.has_value()) {
+            result["padColor"] = padColor.value();
+        }
+        if (videoFormat.has_value()) {
+            result["videoFormat"] = videoFormat.value();
+        }
+        if (brollShorterPolicyKey.has_value()) {
+            result["brollShorterPolicyKey"] = brollShorterPolicyKey.value();
+        }
+        if (syntheticAll.has_value()) {
+            result["syntheticAll"] = syntheticAll.value();
+        }
+        
+        return result;
+    }
 };
 
 struct ExtendedProjectAndScenesVo {
-    ExtendedProject project;
+    // 基本项目信息 - 匹配 Java ProjectAndScenesVo
     std::string projectUuid;
     std::string ownerUuid;
     StatusEnum status{StatusEnum::ACTIVE};
+    
+    // Content - 匹配 Java 字段
+    std::vector<ProjectBgm> bgms;
+    std::vector<ExtendedProjectScene> scenes;
+    std::unordered_map<std::string, ProjectSceneAsset> assets; // assetId -> asset
+    std::unordered_map<std::string, SyntheticVoiceMetadata> syntheticVoices; // assetId -> voice
+    
+    // 新增字段匹配 Java ProjectAndScenesVo
+    bool syntheticAll{false};
+    std::optional<std::string> padColor;
+    std::optional<std::string> videoFormat;
+    std::optional<std::string> brollShorterPolicyKey;
+    
+    // Style 字段
+    std::optional<json> text; // 文本样式
+    std::optional<json> style; // 样式配置
+    
+    // 兼容性字段
+    ExtendedProject project; // 保持向后兼容
+    std::vector<ExtendedTimeline> timelines; // Global timeline list for backward compatibility
+    int version{1}; // for conflict detection
 
     public:
         ExtendedProjectAndScenesVo() = default;
-        ExtendedProjectAndScenesVo(const nlohmann::json &scenes);
-    // Content
-    std::vector<ExtendedProjectScene> scenes;
-    std::vector<ExtendedTimeline> timelines; // Global timeline list for backward compatibility
-    std::unordered_map<std::string, ProjectSceneAsset> assets; // assetId -> asset
-    std::vector<ProjectBgm> bgms;
-    std::unordered_map<std::string, SyntheticVoiceMetadata> syntheticVoices; // assetId -> voice
+        ExtendedProjectAndScenesVo(const nlohmann::json &data) {
+            if (data.contains("projectUuid")) {
+                projectUuid = data["projectUuid"].get<std::string>();
+            }
+            if (data.contains("ownerUuid")) {
+                ownerUuid = data["ownerUuid"].get<std::string>();
+            }
+            if (data.contains("status")) {
+                std::string statusStr = data["status"].get<std::string>();
+                if (statusStr == "ACTIVE") status = StatusEnum::ACTIVE;
+                else if (statusStr == "DELETED") status = StatusEnum::DELETED;
+            }
+            
+            // 解析 bgms
+            if (data.contains("bgms") && data["bgms"].is_array()) {
+                for (const auto& bgmJson : data["bgms"]) {
+                    bgms.emplace_back(bgmJson);
+                }
+            }
+            
+            // 解析 scenes
+            if (data.contains("scenes") && data["scenes"].is_array()) {
+                for (const auto& sceneJson : data["scenes"]) {
+                    scenes.emplace_back(sceneJson);
+                }
+            }
+            
+            // 解析 assets
+            if (data.contains("assets") && data["assets"].is_object()) {
+                for (const auto& [assetId, assetJson] : data["assets"].items()) {
+                    assets[assetId] = ProjectSceneAsset(assetJson);
+                }
+            }
+            
+            // 解析 syntheticVoices
+            if (data.contains("syntheticVoices") && data["syntheticVoices"].is_object()) {
+                for (const auto& [voiceId, voiceJson] : data["syntheticVoices"].items()) {
+                    syntheticVoices[voiceId] = SyntheticVoiceMetadata(voiceJson);
+                }
+            }
+            
+            // 新增字段
+            if (data.contains("syntheticAll")) {
+                syntheticAll = data["syntheticAll"].get<bool>();
+            }
+            if (data.contains("padColor")) {
+                padColor = data["padColor"].get<std::string>();
+            }
+            if (data.contains("videoFormat")) {
+                videoFormat = data["videoFormat"].get<std::string>();
+            }
+            if (data.contains("brollShorterPolicyKey")) {
+                brollShorterPolicyKey = data["brollShorterPolicyKey"].get<std::string>();
+            }
+            
+            // Style 字段
+            if (data.contains("text")) {
+                text = data["text"];
+            }
+            if (data.contains("style")) {
+                style = data["style"];
+            }
+            
+            // 兼容性字段
+            if (data.contains("project")) {
+                project = ExtendedProject(data["project"]);
+            }
+            if (data.contains("version")) {
+                version = data["version"].get<int>();
+            }
+        }
+
+        // 添加 toJson 方法用于序列化
+        nlohmann::json toJson() const {
+            nlohmann::json result;
+            
+            result["projectUuid"] = projectUuid;
+            result["ownerUuid"] = ownerUuid;
+            
+            // 状态转换
+            switch (status) {
+                case StatusEnum::ACTIVE: result["status"] = "ACTIVE"; break;
+                case StatusEnum::DELETED: result["status"] = "DELETED"; break;
+                case StatusEnum::DRAFT: result["status"] = "DRAFT"; break;
+            }
+            
+            // BGMs 数组 - 使用真实的序列化
+            result["bgms"] = nlohmann::json::array();
+            for (const auto& bgm : bgms) {
+                result["bgms"].push_back(bgm.toJson());
+            }
+            
+            // Scenes 数组
+            result["scenes"] = nlohmann::json::array();
+            for (const auto& scene : scenes) {
+                result["scenes"].push_back(scene.toJson());
+            }
+            
+            // Assets 对象 - 使用真实的序列化
+            result["assets"] = nlohmann::json::object();
+            for (const auto& [assetId, asset] : assets) {
+                result["assets"][assetId] = asset.toJson();
+            }
+            
+            // Synthetic voices 对象 - 使用真实的序列化
+            result["syntheticVoices"] = nlohmann::json::object();
+            for (const auto& [voiceId, voice] : syntheticVoices) {
+                result["syntheticVoices"][voiceId] = voice.toJson();
+            }
+            
+            // 新增字段
+            result["syntheticAll"] = syntheticAll;
+            if (padColor.has_value()) result["padColor"] = padColor.value();
+            if (videoFormat.has_value()) result["videoFormat"] = videoFormat.value();
+            if (brollShorterPolicyKey.has_value()) result["brollShorterPolicyKey"] = brollShorterPolicyKey.value();
+            
+            // Style 字段
+            if (text.has_value()) result["text"] = text.value();
+            if (style.has_value()) result["style"] = style.value();
+            
+            // 兼容性字段 - 使用真实的序列化
+            result["project"] = project.toJson();
+            result["version"] = version;
+            
+            return result;
+        }
+};
+
+// Single scene VO structure (matching Java ProjectAndSceneVo)
+struct ExtendedProjectAndSceneVo {
+    ExtendedProjectAndSceneVo() = default;
+    ExtendedProjectAndSceneVo(const nlohmann::json& data) {
+        if (data.contains("projectUuid")) {
+            projectUuid = data["projectUuid"].get<std::string>();
+        }
+        if (data.contains("sceneUuid")) {
+            sceneUuid = data["sceneUuid"].get<std::string>();
+        }
+        if (data.contains("scene")) {
+            scene = ExtendedProjectScene(data["scene"]);
+        }
+        if (data.contains("assets") && data["assets"].is_object()) {
+            for (const auto& [assetId, assetJson] : data["assets"].items()) {
+                ProjectSceneAsset asset(assetJson);
+                assets[assetId] = asset;
+            }
+        }
+    }
     
-    // Style (simplified)
-    std::optional<json> style;
-    std::optional<json> text; // deprecated text style
+    std::string projectUuid;
+    std::string sceneUuid;
+    std::optional<ExtendedProjectScene> scene;
+    std::unordered_map<std::string, ProjectSceneAsset> assets; // key: asset_id
     
-    // Internal tracking
-    int version{1}; // for conflict detection
+    // Getter methods matching Java behavior
+    std::string getProjectUuid() const {
+        return scene.has_value() ? scene->projectUuid : projectUuid;
+    }
+    
+    std::string getSceneUuid() const {
+        return scene.has_value() ? scene->sceneUuid : sceneUuid;
+    }
+
+    // 添加 toJson 方法用于序列化
+    nlohmann::json toJson() const {
+        nlohmann::json result;
+        
+        result["projectUuid"] = getProjectUuid();
+        result["sceneUuid"] = getSceneUuid();
+        
+        if (scene.has_value()) {
+            result["scene"] = scene->toJson();
+        }
+        
+        // Assets 对象 - 使用真实的序列化
+        result["assets"] = nlohmann::json::object();
+        for (const auto& [assetId, asset] : assets) {
+            result["assets"][assetId] = asset.toJson();
+        }
+        
+        return result;
+    }
 };
 
 // Request body structures (enhanced)

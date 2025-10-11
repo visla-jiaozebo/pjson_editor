@@ -13,185 +13,10 @@ std::string genUuid() {
     return "uuid-" + std::to_string(++counter);
 }
 
-pjson::ExtendedProjectAndScenesVo::ExtendedProjectAndScenesVo(const nlohmann::json &scene_list_resp) {
-    // /v3/project/{projectUuid}/scene/list response parsing
-    // initialize from JSON response
-    if (scene_list_resp.contains("data")) {
-        const auto& data = scene_list_resp["data"];
-        
-        // Extract basic project information
-        if (data.contains("projectUuid")) {
-            projectUuid = data["projectUuid"].get<std::string>();
-            project.uuid = projectUuid;
-        }
-        
-        if (data.contains("ownerUuid")) {
-            ownerUuid = data["ownerUuid"].get<std::string>();
-        }
-        
-        // Parse status
-        if (data.contains("status")) {
-            std::string statusStr = data["status"].get<std::string>();
-            if (statusStr == "active") {
-                status = StatusEnum::ACTIVE;
-            } else if (statusStr == "deleted") {
-                status = StatusEnum::DELETED;
-            } else if (statusStr == "draft") {
-                status = StatusEnum::DRAFT;
-            }
-        }
-        
-        // Parse scenes array
-        if (data.contains("scenes") && data["scenes"].is_array()) {
-            scenes.clear();
-            for (const auto& sceneJson : data["scenes"]) {
-                ExtendedProjectScene scene;
-                
-                // Basic scene properties
-                if (sceneJson.contains("sceneUuid")) {
-                    scene.uuid = sceneJson["sceneUuid"].get<std::string>();
-                }
-                if (sceneJson.contains("projectUuid")) {
-                    scene.projectUuid = sceneJson["projectUuid"].get<std::string>();
-                }
-                if (sceneJson.contains("name")) {
-                    scene.name = sceneJson["name"].get<std::string>();
-                }
-                if (sceneJson.contains("duration")) {
-                    scene.duration = sceneJson["duration"].get<int>();
-                }
-                if (sceneJson.contains("timeOffsetInProject")) {
-                    scene.timeOffsetInProject = sceneJson["timeOffsetInProject"].get<int>();
-                }
-                if (sceneJson.contains("pauseTime")) {
-                    scene.pauseTime = sceneJson["pauseTime"].get<int>();
-                }
-                if (sceneJson.contains("audioFlag")) {
-                    scene.audioFlag = sceneJson["audioFlag"].get<int>();
-                }
-                
-                // Parse scene type
-                if (sceneJson.contains("sceneType")) {
-                    std::string sceneTypeStr = sceneJson["sceneType"].get<std::string>();
-                    if (sceneTypeStr == "intro") {
-                        scene.sceneType = SceneTypeEnum::INTRO;
-                    } else if (sceneTypeStr == "outro") {
-                        scene.sceneType = SceneTypeEnum::OUTRO;
-                    } else if (sceneTypeStr == "blankScene") {
-                        scene.sceneType = SceneTypeEnum::BLANK_SCENE;
-                    } else {
-                        scene.sceneType = SceneTypeEnum::DEFAULT;
-                    }
-                }
-                
-                // Parse aRolls (main content timelines)
-                if (sceneJson.contains("arolls") && sceneJson["arolls"].is_array()) {
-                    scene.aRolls.clear();
-                    for (const auto& timelineJson : sceneJson["arolls"]) {
-                        ExtendedTimeline timeline(timelineJson);  // Use constructor
-                        timeline.category = ProjectTimelineCategoryEnum::MAIN_STORY; // Set category
-                        scene.aRolls.push_back(timeline);
-                        timelines.push_back(timeline); // Also add to global timeline list
-                    }
-                }
-                
-                // Parse bRolls (footage/broll timelines)
-                if (sceneJson.contains("brolls") && sceneJson["brolls"].is_array()) {
-                    scene.bRolls.clear();
-                    for (const auto& timelineJson : sceneJson["brolls"]) {
-                        ExtendedTimeline timeline(timelineJson);  // Use constructor
-                        timeline.category = ProjectTimelineCategoryEnum::FOOTAGE; // Set category
-                        scene.bRolls.push_back(timeline);
-                        timelines.push_back(timeline);
-                    }
-                }
-                
-                // Parse voiceOvers
-                if (sceneJson.contains("voiceOvers") && sceneJson["voiceOvers"].is_array()) {
-                    scene.voiceOvers.clear();
-                    for (const auto& voiceJson : sceneJson["voiceOvers"]) {
-                        VoiceOver voiceOver(voiceJson);  // Use constructor
-                        scene.voiceOvers.push_back(voiceOver);
-                    }
-                }
-                
-                // Parse transcript
-                if (sceneJson.contains("transcript")) {
-                    const auto& transcriptJson = sceneJson["transcript"];
-                    SceneTranscript transcript;
-                    
-                    if (transcriptJson.contains("items") && transcriptJson["items"].is_array()) {
-                        for (const auto& itemJson : transcriptJson["items"]) {
-                            TranscriptItem item(itemJson);  // Use the constructor
-                            transcript.items.push_back(item);
-                        }
-                        
-                        // Build full text from items
-                        std::string fullText;
-                        for (const auto& item : transcript.items) {
-                            if (!fullText.empty()) fullText += " ";
-                            fullText += item.content;
-                        }
-                        transcript.text = fullText;
-                    }
-                    
-                    if (sceneJson.contains("transcriptModified")) {
-                        transcript.modified = sceneJson["transcriptModified"].get<bool>();
-                    }
-                    
-                    scene.transcript = transcript;
-                }
-                
-                // Parse transitions
-                if (sceneJson.contains("transitions") && sceneJson["transitions"].is_array()) {
-                    scene.transitions.clear();
-                    for (const auto& transitionJson : sceneJson["transitions"]) {
-                        SceneTransition transition(transitionJson);  // Use constructor
-                        scene.transitions.push_back(transition);
-                    }
-                }
-                
-                scenes.push_back(scene);
-            }
-        }
-        
-        // Parse assets map
-        if (data.contains("assets") && data["assets"].is_object()) {
-            assets.clear();
-            for (const auto& [assetId, assetJson] : data["assets"].items()) {
-                ProjectSceneAsset asset(assetJson);  // Use constructor
-                assets[assetId] = asset;
-            }
-        }
-        
-        // Parse BGMs
-        if (data.contains("bgms") && data["bgms"].is_array()) {
-            bgms.clear();
-            for (const auto& bgmJson : data["bgms"]) {
-                ProjectBgm bgm(bgmJson);  // Use constructor
-                bgms.push_back(bgm);
-            }
-        }
-        
-        // Parse synthetic voices
-        if (data.contains("syntheticVoices") && data["syntheticVoices"].is_object()) {
-            syntheticVoices.clear();
-            for (const auto& [voiceId, voiceJson] : data["syntheticVoices"].items()) {
-                SyntheticVoiceMetadata voice(voiceJson);  // Use constructor
-                syntheticVoices[voiceId] = voice;
-            }
-        }
-        
-        // Parse style information
-        if (data.contains("style")) {
-            style = data["style"];
-        }
-        
-        if (data.contains("text")) {
-            text = data["text"];
-        }
-    }
-}
+// Forward declarations for JSON conversion functions
+nlohmann::json toJson(const ExtendedProjectScene& scene);
+nlohmann::json toJson(const ExtendedProjectAndSceneVo& vo);
+nlohmann::json toJson(const ExtendedProjectAndScenesVo& vo);
 
 pjson::ExtendedProjectAndScenesVo EMPTY_PROJECT;
 
@@ -231,16 +56,20 @@ ApiResult ExtendedControllerAPI::addScene(const ExtendedProjectSceneAddReqBody& 
         // New scene added after the last scene
         if (!scenes.empty()) {
             const auto& lastScene = scenes[scenes.size() - 1];
-            timeOffsetInProject = lastScene.timeOffsetInProject + lastScene.duration;
+            timeOffsetInProject = lastScene.timeOffsetInProject.value_or(0) + lastScene.duration.value_or(0);
         }
     } else {
         // New scene inserted at specific position
-        timeOffsetInProject = scenes[addPosition].timeOffsetInProject;
+        timeOffsetInProject = scenes[addPosition].timeOffsetInProject.value_or(0);
         
         // Step 4: Update timeOffsets for all subsequent scenes and their timelines
         for (size_t i = addPosition; i < scenes.size(); ++i) {
             auto& scene = scenes[i];
-            scene.timeOffsetInProject += duration;
+            if (scene.timeOffsetInProject.has_value()) {
+                scene.timeOffsetInProject = scene.timeOffsetInProject.value() + duration;
+            } else {
+                scene.timeOffsetInProject = duration;
+            }
             
             // Update timelines within the affected scene
             for (auto& timeline : scene.aRolls) {
@@ -257,14 +86,14 @@ ApiResult ExtendedControllerAPI::addScene(const ExtendedProjectSceneAddReqBody& 
             patches.push_back({
                 {"op", "replace"},
                 {"path", "/scenes/" + std::to_string(i + 1) + "/timeOffsetInProject"}, // +1 because we'll insert new scene
-                {"value", scene.timeOffsetInProject}
+                {"value", scene.timeOffsetInProject.value_or(0)}
             });
         }
     }
     
     // Step 5: Create new scene (following Java backend structure)
     ExtendedProjectScene newScene;
-    newScene.uuid = genUuid();
+    newScene.sceneUuid = genUuid();
     newScene.projectUuid = dataStore->getProject().projectUuid;
     
     // Use name from reqBody if provided, otherwise default
@@ -293,10 +122,10 @@ ApiResult ExtendedControllerAPI::addScene(const ExtendedProjectSceneAddReqBody& 
     
     // Step 7: Generate patch for new scene addition
     nlohmann::json sceneValue = {
-        {"uuid", newScene.uuid},
+        {"uuid", newScene.sceneUuid},
         {"name", newScene.name},
-        {"duration", newScene.duration},
-        {"timeOffsetInProject", newScene.timeOffsetInProject},
+        {"duration", newScene.duration.value_or(0)},
+        {"timeOffsetInProject", newScene.timeOffsetInProject.value_or(0)},
         {"sceneType", static_cast<int>(newScene.sceneType)}
     };
     
@@ -314,9 +143,10 @@ ApiResult ExtendedControllerAPI::addScene(const ExtendedProjectSceneAddReqBody& 
     dataStore->recomputeOffsets();
     
     // Step 10: Create ProjectAndSceneVo equivalent data for API compatibility
-    nlohmann::json resultData = convertProjectToProjectAndSceneVo(newScene.uuid);
+    auto resultData = convertProjectToProjectAndSceneVo(newScene.sceneUuid);
+    nlohmann::json responseData = toJson(resultData);
     
-    return ApiResult::success(patches, resultData);
+    return ApiResult::success(patches, responseData);
 }
 
 void ExtendedControllerAPI::addSceneFeedServerResp(const nlohmann::json &resp)
@@ -354,9 +184,10 @@ ApiResult ExtendedControllerAPI::renameScene(const ExtendedProjectSceneRenameReq
     });
     
     // Step 5: Create ProjectAndSceneVo equivalent data for API compatibility
-    nlohmann::json resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
+    auto resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
+    nlohmann::json responseData = toJson(resultData);
     
-    return ApiResult::success(patch, resultData);
+    return ApiResult::success(patch, responseData);
 }
 
 ApiResult ExtendedControllerAPI::moveScene(const ExtendedProjectSceneMoveReqBody& reqBody) {
@@ -375,7 +206,7 @@ ApiResult ExtendedControllerAPI::moveScene(const ExtendedProjectSceneMoveReqBody
     // Step 2: Find current scene and validate
     auto currSceneIt = std::find_if(scenes.begin(), scenes.end(), 
         [&reqBody](const ExtendedProjectScene& scene) {
-            return scene.uuid == reqBody.sceneUuid;
+            return scene.sceneUuid == reqBody.sceneUuid;
         });
     
     if (currSceneIt == scenes.end()) {
@@ -391,6 +222,8 @@ ApiResult ExtendedControllerAPI::moveScene(const ExtendedProjectSceneMoveReqBody
     
     // Step 4: Determine insertion position and time offset
     int insertTimeOffset = 0;
+    int currOffset = currScene.timeOffsetInProject.value_or(0);
+    int currDuration = currScene.duration.value_or(0);
     
     if (!reqBody.afterSceneUuid.has_value() || reqBody.afterSceneUuid.value().empty()) {
         // Move to beginning (after intro if exists)
@@ -402,7 +235,7 @@ ApiResult ExtendedControllerAPI::moveScene(const ExtendedProjectSceneMoveReqBody
         // Move after specified scene
         auto afterSceneIt = std::find_if(scenes.begin(), scenes.end(), 
             [&reqBody](const ExtendedProjectScene& scene) {
-                return scene.uuid == reqBody.afterSceneUuid.value();
+                return scene.sceneUuid == reqBody.afterSceneUuid.value();
             });
         
         if (afterSceneIt == scenes.end()) {
@@ -417,21 +250,24 @@ ApiResult ExtendedControllerAPI::moveScene(const ExtendedProjectSceneMoveReqBody
         }
         
         // Calculate insertion time offset
-        if (afterScene.timeOffsetInProject == currScene.timeOffsetInProject) {
+        int afterOffset = afterScene.timeOffsetInProject.value_or(0);
+        int afterDuration = afterScene.duration.value_or(0);
+        
+        if (afterOffset == currOffset) {
             // No change needed, return current scene count
             nlohmann::json resultData = static_cast<int>(scenes.size());
             return ApiResult::success(patches, resultData);
-        } else if (afterScene.timeOffsetInProject < currScene.timeOffsetInProject) {
+        } else if (afterOffset < currOffset) {
             // Moving backward
-            insertTimeOffset = afterScene.timeOffsetInProject + afterScene.duration;
+            insertTimeOffset = afterOffset + afterDuration;
         } else {
             // Moving forward
-            insertTimeOffset = afterScene.timeOffsetInProject + afterScene.duration - currScene.duration;
+            insertTimeOffset = afterOffset + afterDuration - currDuration;
         }
     }
     
     // Step 5: Check if position unchanged
-    if (insertTimeOffset == currScene.timeOffsetInProject) {
+    if (insertTimeOffset == currOffset) {
         // No change needed, return current scene count
         nlohmann::json resultData = static_cast<int>(scenes.size());
         return ApiResult::success(patches, resultData);
@@ -440,16 +276,17 @@ ApiResult ExtendedControllerAPI::moveScene(const ExtendedProjectSceneMoveReqBody
     // Step 6: Calculate affected scenes and update their time offsets
     int timeOffsetChange;
     
-    if (insertTimeOffset < currScene.timeOffsetInProject) {
+    if (insertTimeOffset < currOffset) {
         // Moving backward - scenes between new position and old position move forward
-        timeOffsetChange = currScene.duration;
+        timeOffsetChange = currDuration;
         
         for (auto& scene : scenes) {
-            if (scene.uuid != currScene.uuid && 
-                scene.timeOffsetInProject >= insertTimeOffset && 
-                scene.timeOffsetInProject < currScene.timeOffsetInProject) {
+            int sceneOffset = scene.timeOffsetInProject.value_or(0);
+            if (scene.sceneUuid != currScene.sceneUuid && 
+                sceneOffset >= insertTimeOffset && 
+                sceneOffset < currOffset) {
                 
-                scene.timeOffsetInProject += timeOffsetChange;
+                scene.timeOffsetInProject = sceneOffset + timeOffsetChange;
                 
                 // Update timelines within affected scene
                 for (auto& timeline : scene.aRolls) {
@@ -465,14 +302,15 @@ ApiResult ExtendedControllerAPI::moveScene(const ExtendedProjectSceneMoveReqBody
         }
     } else {
         // Moving forward - scenes between old position and new position move backward
-        timeOffsetChange = -currScene.duration;
+        timeOffsetChange = -currDuration;
         
         for (auto& scene : scenes) {
-            if (scene.uuid != currScene.uuid && 
-                scene.timeOffsetInProject > currScene.timeOffsetInProject && 
-                scene.timeOffsetInProject <= insertTimeOffset + currScene.duration) {
+            int sceneOffset = scene.timeOffsetInProject.value_or(0);
+            if (scene.sceneUuid != currScene.sceneUuid && 
+                sceneOffset > currOffset && 
+                sceneOffset <= insertTimeOffset + currDuration) {
                 
-                scene.timeOffsetInProject += timeOffsetChange;
+                scene.timeOffsetInProject = sceneOffset + timeOffsetChange;
                 
                 // Update timelines within affected scene
                 for (auto& timeline : scene.aRolls) {
@@ -489,7 +327,7 @@ ApiResult ExtendedControllerAPI::moveScene(const ExtendedProjectSceneMoveReqBody
     }
     
     // Step 7: Update current scene time offset and its timelines
-    int sceneOffsetChange = insertTimeOffset - currScene.timeOffsetInProject;
+    int sceneOffsetChange = insertTimeOffset - currOffset;
     currScene.timeOffsetInProject = insertTimeOffset;
     
     // Update timelines within current scene
@@ -505,11 +343,11 @@ ApiResult ExtendedControllerAPI::moveScene(const ExtendedProjectSceneMoveReqBody
     
     // Step 8: Generate patches for all affected scenes
     for (size_t i = 0; i < scenes.size(); ++i) {
-        patches.push_back({
-            {"op", "replace"},
-            {"path", "/scenes/" + std::to_string(i) + "/timeOffsetInProject"},
-            {"value", scenes[i].timeOffsetInProject}
-        });
+        nlohmann::json patch;
+        patch["op"] = "replace";
+        patch["path"] = "/scenes/" + std::to_string(i) + "/timeOffsetInProject";
+        patch["value"] = scenes[i].timeOffsetInProject.value_or(0);
+        patches.push_back(patch);
     }
     
     // Step 9: Sort scenes by timeOffsetInProject to maintain proper order
@@ -538,7 +376,7 @@ ApiResult ExtendedControllerAPI::setSceneTime(const ExtendedProjectSceneSetTimeR
     // Step 1: Find and validate the target scene
     auto sceneIt = std::find_if(scenes.begin(), scenes.end(), 
         [&reqBody](const ExtendedProjectScene& scene) {
-            return scene.uuid == reqBody.sceneUuid;
+            return scene.sceneUuid == reqBody.sceneUuid;
         });
     
     if (sceneIt == scenes.end()) {
@@ -546,7 +384,7 @@ ApiResult ExtendedControllerAPI::setSceneTime(const ExtendedProjectSceneSetTimeR
     }
     
     ExtendedProjectScene& targetScene = *sceneIt;
-    int oldDuration = targetScene.duration;
+    int oldDuration = targetScene.duration.value_or(0);
     int newDuration = reqBody.newDuration;
     int timeChange = newDuration - oldDuration;
     
@@ -572,8 +410,9 @@ ApiResult ExtendedControllerAPI::setSceneTime(const ExtendedProjectSceneSetTimeR
         });
         
         // Create ProjectAndSceneVo equivalent data for API compatibility
-        nlohmann::json resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
-        return ApiResult::success(patches, resultData);
+        auto resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
+    nlohmann::json responseData = toJson(resultData);
+        return ApiResult::success(patches, responseData);
     }
     
     // Step 4: Update scene duration and transcript if needed
@@ -606,7 +445,7 @@ ApiResult ExtendedControllerAPI::setSceneTime(const ExtendedProjectSceneSetTimeR
         auto& scene = scenes[i];
         
         // Update scene time offset
-        scene.timeOffsetInProject += timeChange;
+        scene.timeOffsetInProject = scene.timeOffsetInProject.value_or(0) + timeChange;
         
         // Update all timeline offsets within the affected scene
         for (auto& timeline : scene.aRolls) {
@@ -620,37 +459,38 @@ ApiResult ExtendedControllerAPI::setSceneTime(const ExtendedProjectSceneSetTimeR
         }
         
         // Generate patches for affected scenes
-        patches.push_back({
-            {"op", "replace"},
-            {"path", "/scenes/" + std::to_string(i) + "/timeOffsetInProject"},
-            {"value", scene.timeOffsetInProject}
-        });
+        nlohmann::json patch;
+        patch["op"] = "replace";
+        patch["path"] = "/scenes/" + std::to_string(i) + "/timeOffsetInProject";
+        patch["value"] = scene.timeOffsetInProject.value_or(0);
+        patches.push_back(patch);
     }
     
     // Step 8: Generate patch for the updated scene
     size_t sceneIndex = std::distance(scenes.begin(), sceneIt);
-    patches.push_back({
-        {"op", "replace"},
-        {"path", "/scenes/" + std::to_string(sceneIndex) + "/duration"},
-        {"value", targetScene.duration}
-    });
+    nlohmann::json durationPatch;
+    durationPatch["op"] = "replace";
+    durationPatch["path"] = "/scenes/" + std::to_string(sceneIndex) + "/duration";
+    durationPatch["value"] = targetScene.duration.value_or(0);
+    patches.push_back(durationPatch);
     
     // Update timelines within the scene
     for (size_t i = 0; i < targetScene.aRolls.size(); ++i) {
-        patches.push_back({
-            {"op", "replace"},
-            {"path", "/scenes/" + std::to_string(sceneIndex) + "/aRolls/" + std::to_string(i) + "/duration"},
-            {"value", targetScene.aRolls[i].duration}
-        });
+        nlohmann::json timelinePatch;
+        timelinePatch["op"] = "replace";
+        timelinePatch["path"] = "/scenes/" + std::to_string(sceneIndex) + "/aRolls/" + std::to_string(i) + "/duration";
+        timelinePatch["value"] = targetScene.aRolls[i].duration;
+        patches.push_back(timelinePatch);
     }
     
     // Step 9: Recompute all offsets to ensure consistency
     dataStore->recomputeOffsets();
     
     // Step 10: Create ProjectAndSceneVo equivalent data for API compatibility
-    nlohmann::json resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
+    auto resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
+    nlohmann::json responseData = toJson(resultData);
     
-    return ApiResult::success(patches, resultData);
+    return ApiResult::success(patches, responseData);
 }
 
 ApiResult ExtendedControllerAPI::cutScene(const ExtendedProjectSceneCutReqBody& reqBody) {
@@ -699,8 +539,8 @@ ApiResult ExtendedControllerAPI::splitScene(const ExtendedProjectSceneSplitReqBo
     ExtendedProjectScene secondScene = *originScene;
     
     // Generate new UUIDs
-    firstScene.uuid = genUuid();
-    secondScene.uuid = genUuid();
+    firstScene.sceneUuid = genUuid();
+    secondScene.sceneUuid = genUuid();
     
     // Set scene names (following Java backend pattern)
     firstScene.name = originScene->name + "(1)";
@@ -710,8 +550,8 @@ ApiResult ExtendedControllerAPI::splitScene(const ExtendedProjectSceneSplitReqBo
     firstScene.duration = splitTime;
     firstScene.pauseTime = std::make_optional(0); // First scene gets no pause time
     
-    secondScene.duration = originScene->duration - splitTime;
-    secondScene.timeOffsetInProject = originScene->timeOffsetInProject + splitTime;
+    secondScene.duration = originScene->duration.value_or(0) - splitTime;
+    secondScene.timeOffsetInProject = originScene->timeOffsetInProject.value_or(0) + splitTime;
     secondScene.pauseTime = originScene->pauseTime; // Second scene inherits pause time
     
     // Step 4: Split transcripts (Java backend: TranscriptUtil.splitTranscript with complex pace logic)
@@ -730,7 +570,7 @@ ApiResult ExtendedControllerAPI::splitScene(const ExtendedProjectSceneSplitReqBo
         // 4. Proper item splitting with time offset adjustments
         
         // Simplified implementation (Java uses complex pace-based splitting):
-        double splitRatio = static_cast<double>(splitTime) / originScene->duration;
+        double splitRatio = static_cast<double>(splitTime) / originScene->duration.value_or(1);
         size_t textSplitPoint = static_cast<size_t>(originalTranscript.text.length() * splitRatio);
         
         // Find nearest word boundary (Java backend has more sophisticated boundary detection)
@@ -772,22 +612,22 @@ ApiResult ExtendedControllerAPI::splitScene(const ExtendedProjectSceneSplitReqBo
     
     // Process aRolls
     for (const auto& timeline : originScene->aRolls) {
-        if (timeline.timeOffsetInProject < originScene->timeOffsetInProject + splitTime) {
+        if (timeline.timeOffsetInProject < originScene->timeOffsetInProject.value_or(0) + splitTime) {
             // Timeline belongs to first scene or spans split point
             ExtendedTimeline firstTimeline = timeline;
             
-            if (timeline.timeOffsetInProject + timeline.duration <= originScene->timeOffsetInProject + splitTime) {
+            if (timeline.timeOffsetInProject + timeline.duration <= originScene->timeOffsetInProject.value_or(0) + splitTime) {
                 // Timeline entirely in first scene
                 firstScene.aRolls.push_back(firstTimeline);
             } else {
                 // Timeline spans split point - truncate for first scene
-                int newDuration = (originScene->timeOffsetInProject + splitTime) - timeline.timeOffsetInProject;
+                int newDuration = (originScene->timeOffsetInProject.value_or(0) + splitTime) - timeline.timeOffsetInProject;
                 firstTimeline.duration = newDuration;
                 firstScene.aRolls.push_back(firstTimeline);
                 
                 // Create continuation for second scene
                 ExtendedTimeline secondTimeline = timeline;
-                secondTimeline.timeOffsetInProject = secondScene.timeOffsetInProject;
+                secondTimeline.timeOffsetInProject = secondScene.timeOffsetInProject.value_or(0);
                 secondTimeline.duration = timeline.duration - newDuration;
                 secondScene.aRolls.push_back(secondTimeline);
             }
@@ -801,18 +641,18 @@ ApiResult ExtendedControllerAPI::splitScene(const ExtendedProjectSceneSplitReqBo
     
     // Process bRolls (same logic as aRolls)
     for (const auto& timeline : originScene->bRolls) {
-        if (timeline.timeOffsetInProject < originScene->timeOffsetInProject + splitTime) {
+        if (timeline.timeOffsetInProject < originScene->timeOffsetInProject.value_or(0) + splitTime) {
             ExtendedTimeline firstTimeline = timeline;
             
-            if (timeline.timeOffsetInProject + timeline.duration <= originScene->timeOffsetInProject + splitTime) {
+            if (timeline.timeOffsetInProject + timeline.duration <= originScene->timeOffsetInProject.value_or(0) + splitTime) {
                 firstScene.bRolls.push_back(firstTimeline);
             } else {
-                int newDuration = (originScene->timeOffsetInProject + splitTime) - timeline.timeOffsetInProject;
+                int newDuration = (originScene->timeOffsetInProject.value_or(0) + splitTime) - timeline.timeOffsetInProject;
                 firstTimeline.duration = newDuration;
                 firstScene.bRolls.push_back(firstTimeline);
                 
                 ExtendedTimeline secondTimeline = timeline;
-                secondTimeline.timeOffsetInProject = secondScene.timeOffsetInProject;
+                secondTimeline.timeOffsetInProject = secondScene.timeOffsetInProject.value_or(0);
                 secondTimeline.duration = timeline.duration - newDuration;
                 secondScene.bRolls.push_back(secondTimeline);
             }
@@ -825,18 +665,18 @@ ApiResult ExtendedControllerAPI::splitScene(const ExtendedProjectSceneSplitReqBo
     
     // Process voiceOvers (same logic as timelines)
     for (const auto& voiceOver : originScene->voiceOvers) {
-        if (voiceOver.timeOffsetInProject < originScene->timeOffsetInProject + splitTime) {
+        if (voiceOver.timeOffsetInProject < originScene->timeOffsetInProject.value_or(0) + splitTime) {
             VoiceOver firstVoiceOver = voiceOver;
             
-            if (voiceOver.timeOffsetInProject + voiceOver.duration <= originScene->timeOffsetInProject + splitTime) {
+            if (voiceOver.timeOffsetInProject + voiceOver.duration <= originScene->timeOffsetInProject.value_or(0) + splitTime) {
                 firstScene.voiceOvers.push_back(firstVoiceOver);
             } else {
-                int newDuration = (originScene->timeOffsetInProject + splitTime) - voiceOver.timeOffsetInProject;
+                int newDuration = (originScene->timeOffsetInProject.value_or(0) + splitTime) - voiceOver.timeOffsetInProject;
                 firstVoiceOver.duration = newDuration;
                 firstScene.voiceOvers.push_back(firstVoiceOver);
                 
                 VoiceOver secondVoiceOver = voiceOver;
-                secondVoiceOver.timeOffsetInProject = secondScene.timeOffsetInProject;
+                secondVoiceOver.timeOffsetInProject = secondScene.timeOffsetInProject.value_or(0);
                 secondVoiceOver.duration = voiceOver.duration - newDuration;
                 secondScene.voiceOvers.push_back(secondVoiceOver);
             }
@@ -850,7 +690,7 @@ ApiResult ExtendedControllerAPI::splitScene(const ExtendedProjectSceneSplitReqBo
     // Step 6: Update subsequent scenes' timeOffsets (they shift by 0 since we're replacing 1 scene with 2)
     // But we need to adjust scenes after the split position
     for (auto& scene : dataStore->getProject().scenes) {
-        if (scene.timeOffsetInProject > originScene->timeOffsetInProject && scene.uuid != originScene->uuid) {
+        if (scene.timeOffsetInProject.value_or(0) > originScene->timeOffsetInProject.value_or(0) && scene.sceneUuid != originScene->sceneUuid) {
             // No change needed - total duration remains the same
         }
     }
@@ -858,17 +698,17 @@ ApiResult ExtendedControllerAPI::splitScene(const ExtendedProjectSceneSplitReqBo
     // Step 7: Replace original scene with two new scenes in data store
     auto& scenes = dataStore->getProject().scenes;
     auto it = std::find_if(scenes.begin(), scenes.end(), 
-                          [&](const ExtendedProjectScene& s) { return s.uuid == originScene->uuid; });
+                          [&](const ExtendedProjectScene& s) { return s.sceneUuid == originScene->sceneUuid; });
     
     if (it != scenes.end()) {
         int index = std::distance(scenes.begin(), it);
         
         // Generate scene patches
         nlohmann::json firstSceneValue = {
-            {"uuid", firstScene.uuid},
+            {"uuid", firstScene.sceneUuid},
             {"name", firstScene.name},
-            {"duration", firstScene.duration},
-            {"timeOffsetInProject", firstScene.timeOffsetInProject},
+            {"duration", firstScene.duration.value_or(0)},
+            {"timeOffsetInProject", firstScene.timeOffsetInProject.value_or(0)},
             {"sceneType", static_cast<int>(firstScene.sceneType)}
         };
         if (transcriptWasSplit && firstScene.transcript.has_value()) {
@@ -881,10 +721,10 @@ ApiResult ExtendedControllerAPI::splitScene(const ExtendedProjectSceneSplitReqBo
         });
         
         nlohmann::json secondSceneValue = {
-            {"uuid", secondScene.uuid},
+            {"uuid", secondScene.sceneUuid},
             {"name", secondScene.name},
-            {"duration", secondScene.duration},
-            {"timeOffsetInProject", secondScene.timeOffsetInProject},
+            {"duration", secondScene.duration.value_or(0)},
+            {"timeOffsetInProject", secondScene.timeOffsetInProject.value_or(0)},
             {"sceneType", static_cast<int>(secondScene.sceneType)}
         };
         if (transcriptWasSplit && secondScene.transcript.has_value()) {
@@ -911,13 +751,13 @@ ApiResult ExtendedControllerAPI::splitScene(const ExtendedProjectSceneSplitReqBo
         
         // Step 7.6: Update global timeline references
         for (auto& timeline : dataStore->getProject().timelines) {
-            if (timeline.sceneUuid == originScene->uuid) {
+            if (timeline.sceneUuid == originScene->sceneUuid) {
                 // Timeline splitting logic would be applied here
                 // For now, update scene references for first occurrence
-                if (timeline.timeOffsetInProject < originScene->timeOffsetInProject + splitTime) {
-                    timeline.sceneUuid = firstScene.uuid;
+                if (timeline.timeOffsetInProject < originScene->timeOffsetInProject.value_or(0) + splitTime) {
+                    timeline.sceneUuid = firstScene.sceneUuid;
                 } else {
-                    timeline.sceneUuid = secondScene.uuid;
+                    timeline.sceneUuid = secondScene.sceneUuid;
                     timeline.timeOffsetInProject -= splitTime; // Adjust offset
                 }
             }
@@ -929,8 +769,10 @@ ApiResult ExtendedControllerAPI::splitScene(const ExtendedProjectSceneSplitReqBo
     
     // Step 9: Create data array with both split scenes (following Java backend: List<ProjectAndSceneVo>)
     nlohmann::json resultData = nlohmann::json::array();
-    resultData.push_back(convertProjectToProjectAndSceneVo(firstScene.uuid));
-    resultData.push_back(convertProjectToProjectAndSceneVo(secondScene.uuid));
+    auto firstSceneData = convertProjectToProjectAndSceneVo(firstScene.sceneUuid);
+    auto secondSceneData = convertProjectToProjectAndSceneVo(secondScene.sceneUuid);
+    resultData.push_back(toJson(firstSceneData));
+    resultData.push_back(toJson(secondSceneData));
     
     return ApiResult::success(patches, resultData);
 }
@@ -946,7 +788,7 @@ ApiResult ExtendedControllerAPI::deleteScene(const ExtendedProjectSceneDeleteReq
     // Step 1: Validate scene exists and minimum scene count
     auto sceneIt = std::find_if(scenes.begin(), scenes.end(), 
         [&reqBody](const ExtendedProjectScene& scene) {
-            return scene.uuid == reqBody.sceneUuid;
+            return scene.sceneUuid == reqBody.sceneUuid;
         });
     
     if (sceneIt == scenes.end()) {
@@ -959,8 +801,8 @@ ApiResult ExtendedControllerAPI::deleteScene(const ExtendedProjectSceneDeleteReq
     }
     
     const ExtendedProjectScene& sceneToDelete = *sceneIt;
-    int deletedSceneDuration = sceneToDelete.duration;
-    int deletedSceneOffset = sceneToDelete.timeOffsetInProject;
+    int deletedSceneDuration = sceneToDelete.duration.value_or(0);
+    int deletedSceneOffset = sceneToDelete.timeOffsetInProject.value_or(0);
     size_t deletedSceneIndex = std::distance(scenes.begin(), sceneIt);
     
     // Step 3: Update time offsets for all subsequent scenes and their timelines
@@ -968,7 +810,7 @@ ApiResult ExtendedControllerAPI::deleteScene(const ExtendedProjectSceneDeleteReq
         auto& scene = scenes[i];
         
         // Decrease scene time offset by deleted scene duration
-        scene.timeOffsetInProject -= deletedSceneDuration;
+        scene.timeOffsetInProject = scene.timeOffsetInProject.value_or(0) - deletedSceneDuration;
         
         // Update all timeline offsets within the affected scene
         for (auto& timeline : scene.aRolls) {
@@ -982,11 +824,12 @@ ApiResult ExtendedControllerAPI::deleteScene(const ExtendedProjectSceneDeleteReq
         }
         
         // Generate patches for affected scenes (adjust indices for removal)
-        patches.push_back({
+        nlohmann::json patch = {
             {"op", "replace"},
             {"path", "/scenes/" + std::to_string(i - 1) + "/timeOffsetInProject"}, // i-1 because scene will be removed
-            {"value", scene.timeOffsetInProject}
-        });
+            {"value", scene.timeOffsetInProject.value_or(0)}
+        };
+        patches.push_back(patch);
     }
     
     // Step 4: Handle layer deletion for the scene being deleted (Java backend logic)
@@ -997,7 +840,7 @@ ApiResult ExtendedControllerAPI::deleteScene(const ExtendedProjectSceneDeleteReq
     auto& projectTimelines = dataStore->getProject().timelines;
     auto timelineIt = std::remove_if(projectTimelines.begin(), projectTimelines.end(),
         [&sceneToDelete](const ExtendedTimeline& timeline) {
-            return timeline.sceneUuid == sceneToDelete.uuid;
+            return timeline.sceneUuid == sceneToDelete.sceneUuid;
         });
     projectTimelines.erase(timelineIt, projectTimelines.end());
     
@@ -1092,9 +935,10 @@ ApiResult ExtendedControllerAPI::clearFootage(const ExtendedProjectSceneClearFoo
     });
     
     // Create ProjectAndSceneVo equivalent data for API compatibility
-    nlohmann::json resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
+    auto resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
+    nlohmann::json responseData = toJson(resultData);
     
-    return ApiResult::success(patch, resultData);
+    return ApiResult::success(patch, responseData);
 }
 
 // Additional API stubs
@@ -1120,7 +964,7 @@ ApiResult ExtendedControllerAPI::replaceFootage(const ProjectSceneReplaceFootage
         
         // Set time offsets
         newTimeline.timeOffsetInScene = 0;  // Start at beginning of scene
-        newTimeline.timeOffsetInProject = scene->timeOffsetInProject;
+        newTimeline.timeOffsetInProject = scene->timeOffsetInProject.value_or(0);
         
         // Set start time
         if (reqBody.startTime.has_value()) {
@@ -1134,7 +978,7 @@ ApiResult ExtendedControllerAPI::replaceFootage(const ProjectSceneReplaceFootage
             newTimeline.endTime = reqBody.endTime.value();
         } else {
             // Default to scene duration
-            newTimeline.endTime = newTimeline.startTime + scene->duration;
+            newTimeline.endTime = newTimeline.startTime + scene->duration.value_or(0);
         }
         
         newTimeline.duration = newTimeline.endTime - newTimeline.startTime;
@@ -1174,9 +1018,10 @@ ApiResult ExtendedControllerAPI::replaceFootage(const ProjectSceneReplaceFootage
         });
         
         // Create ProjectAndSceneVo equivalent data for API compatibility
-        nlohmann::json resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
+        auto resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
+    nlohmann::json responseData = toJson(resultData);
         
-        return ApiResult::success(patches, resultData);
+        return ApiResult::success(patches, responseData);
     }
     
     // Original replace logic for non-empty timeline UUID
@@ -1235,9 +1080,10 @@ ApiResult ExtendedControllerAPI::replaceFootage(const ProjectSceneReplaceFootage
     }
     
     // Create ProjectAndSceneVo equivalent data for API compatibility
-    nlohmann::json resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
+    auto resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
+    nlohmann::json responseData = toJson(resultData);
     
-    return ApiResult::success(patches, resultData);
+    return ApiResult::success(patches, responseData);
 }
 
 ApiResult ExtendedControllerAPI::adjustFootage(const ProjectSceneAdjustFootageReqBody& reqBody) {
@@ -1290,7 +1136,7 @@ ApiResult ExtendedControllerAPI::adjustFootage(const ProjectSceneAdjustFootageRe
     if (reqBody.timeOffsetInScene.has_value()) {
         targetTimeline->timeOffsetInScene = reqBody.timeOffsetInScene.value();
         // Recalculate project offset
-        targetTimeline->timeOffsetInProject = scene->timeOffsetInProject + reqBody.timeOffsetInScene.value();
+        targetTimeline->timeOffsetInProject = scene->timeOffsetInProject.value_or(0) + reqBody.timeOffsetInScene.value();
     }
     if (reqBody.volume.has_value()) {
         targetTimeline->volume = reqBody.volume.value();
@@ -1300,9 +1146,10 @@ ApiResult ExtendedControllerAPI::adjustFootage(const ProjectSceneAdjustFootageRe
     }
     
     // Create ProjectAndSceneVo equivalent data for API compatibility
-    nlohmann::json resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
+    auto resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
+    nlohmann::json responseData = toJson(resultData);
     
-    return ApiResult::success(patches, resultData);
+    return ApiResult::success(patches, responseData);
 }
 
 ApiResult ExtendedControllerAPI::addVoiceOver(const AddVoiceOverReqBody& reqBody) {
@@ -1323,7 +1170,7 @@ ApiResult ExtendedControllerAPI::addVoiceOver(const AddVoiceOverReqBody& reqBody
     voiceOver.projectUuid = scene->projectUuid;
     voiceOver.assetUuid = reqBody.assetUuid;
     voiceOver.category = ProjectTimelineCategoryEnum::VOICE_OVER;
-    voiceOver.timeOffsetInProject = scene->timeOffsetInProject + reqBody.timeOffsetInScene;
+    voiceOver.timeOffsetInProject = scene->timeOffsetInProject.value_or(0) + reqBody.timeOffsetInScene;
     voiceOver.duration = reqBody.duration;
     voiceOver.startTime = 0;
     voiceOver.endTime = reqBody.duration;
@@ -1353,8 +1200,9 @@ ApiResult ExtendedControllerAPI::addVoiceOver(const AddVoiceOverReqBody& reqBody
     
     // Convert to JSON data equivalent for API compatibility
     auto resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
+    nlohmann::json responseData = toJson(resultData);
     
-    return ApiResult::success(patches, resultData);
+    return ApiResult::success(patches, responseData);
 }
 
 ApiResult ExtendedControllerAPI::setPauseTime(const ProjectSceneSetPauseTimeReqBody& reqBody) {
@@ -1382,8 +1230,9 @@ ApiResult ExtendedControllerAPI::setPauseTime(const ProjectSceneSetPauseTimeReqB
     });
     
     // Create ProjectAndSceneVo equivalent data for API compatibility
-    nlohmann::json resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
-    return ApiResult::success(patches, resultData);
+    auto resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
+    nlohmann::json responseData = toJson(resultData);
+    return ApiResult::success(patches, responseData);
 }
 
 // Set scene transition **/v3/project/{projectUuid}/scene/set-transition**
@@ -1398,7 +1247,7 @@ ApiResult ExtendedControllerAPI::setSceneTransition(const ProjectSceneTransition
         // Apply transition to all scenes
         const auto& projectData = dataStore->getProject();
         for (const auto& scene : projectData.scenes) {
-            ExtendedProjectScene* scenePtr = dataStore->findScene(scene.uuid);
+            ExtendedProjectScene* scenePtr = dataStore->findScene(scene.sceneUuid);
             if (!scenePtr) continue;
             
             // Clear existing transitions
@@ -1413,7 +1262,7 @@ ApiResult ExtendedControllerAPI::setSceneTransition(const ProjectSceneTransition
                 
                 patches.push_back({
                     {"op", "replace"},
-                    {"path", "/scenes/" + scene.uuid + "/transitions/0"},
+                    {"path", "/scenes/" + scene.sceneUuid + "/transitions/0"},
                     {"value", {
                         {"type", transition.type},
                         {"duration", transition.duration}
@@ -1423,7 +1272,7 @@ ApiResult ExtendedControllerAPI::setSceneTransition(const ProjectSceneTransition
                 // Remove transitions
                 patches.push_back({
                     {"op", "replace"},
-                    {"path", "/scenes/" + scene.uuid + "/transitions"},
+                    {"path", "/scenes/" + scene.sceneUuid + "/transitions"},
                     {"value", nlohmann::json::array()}
                 });
             }
@@ -1498,9 +1347,9 @@ ApiResult ExtendedControllerAPI::addFootage(const ProjectSceneFootageAddReqBody&
     if (bRoll.timeOffsetInProject.has_value()) {
         newBRoll.timeOffsetInProject = bRoll.timeOffsetInProject.value();
     } else {
-        newBRoll.timeOffsetInProject = matchedScene->timeOffsetInProject;
+        newBRoll.timeOffsetInProject = matchedScene->timeOffsetInProject.value_or(0);
     }
-    newBRoll.timeOffsetInScene = newBRoll.timeOffsetInProject - matchedScene->timeOffsetInProject;
+    newBRoll.timeOffsetInScene = newBRoll.timeOffsetInProject - matchedScene->timeOffsetInProject.value_or(0);
     
     // Step 6: Set start and end times (following Java backend logic)
     newBRoll.startTime = bRoll.startTime.has_value() ? bRoll.startTime.value() : 0;
@@ -1511,7 +1360,7 @@ ApiResult ExtendedControllerAPI::addFootage(const ProjectSceneFootageAddReqBody&
         endTime = bRoll.endTime.value();
     } else {
         // Default: startTime + scene duration
-        endTime = newBRoll.startTime + matchedScene->duration;
+        endTime = newBRoll.startTime + matchedScene->duration.value_or(0);
     }
     
     // Apply video creation template logic (simplified from Java backend)
@@ -1539,7 +1388,7 @@ ApiResult ExtendedControllerAPI::addFootage(const ProjectSceneFootageAddReqBody&
         newBRoll.endTime = endTime;
     } else {
         // If has voice over, limit to scene duration
-        newBRoll.endTime = std::min(endTime, newBRoll.startTime + matchedScene->duration);
+        newBRoll.endTime = std::min(endTime, newBRoll.startTime + matchedScene->duration.value_or(0));
     }
     
     newBRoll.duration = newBRoll.endTime - newBRoll.startTime;
@@ -1588,9 +1437,10 @@ ApiResult ExtendedControllerAPI::addFootage(const ProjectSceneFootageAddReqBody&
     }
     
     // Step 12: Final step - assemble scene and timeline(s) into project scene vo (following Java backend)
-    nlohmann::json resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
+    auto resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
+    nlohmann::json responseData = toJson(resultData);
     
-    return ApiResult::success(patches, resultData);
+    return ApiResult::success(patches, responseData);
 }
 
 ApiResult ExtendedControllerAPI::deleteFootage(const ProjectSceneFootageDeleteReqBody& reqBody) {
@@ -1631,9 +1481,10 @@ ApiResult ExtendedControllerAPI::deleteFootage(const ProjectSceneFootageDeleteRe
     });
     
     // Create ProjectAndSceneVo equivalent data for API compatibility
-    nlohmann::json resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
+    auto resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
+    nlohmann::json responseData = toJson(resultData);
     
-    return ApiResult::success(patch, resultData);
+    return ApiResult::success(patch, responseData);
 }
 
 ApiResult ExtendedControllerAPI::deleteVoiceOver(const DeleteVoiceOverReqBody& reqBody) {
@@ -1667,8 +1518,9 @@ ApiResult ExtendedControllerAPI::deleteVoiceOver(const DeleteVoiceOverReqBody& r
     
     // Convert to JSON data equivalent for API compatibility
     auto resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
+    nlohmann::json responseData = toJson(resultData);
     
-    return ApiResult::success(patch, resultData);
+    return ApiResult::success(patch, responseData);
 }
 
 ApiResult ExtendedControllerAPI::adjustVoiceOver(const AdjustVoiceOverReqBody& reqBody) {
@@ -1698,7 +1550,7 @@ ApiResult ExtendedControllerAPI::adjustVoiceOver(const AdjustVoiceOverReqBody& r
     nlohmann::json patch = nlohmann::json::array();
     
     if (reqBody.timeOffsetInScene.has_value()) {
-        voiceOver->timeOffsetInProject = scene->timeOffsetInProject + reqBody.timeOffsetInScene.value();
+        voiceOver->timeOffsetInProject = scene->timeOffsetInProject.value_or(0) + reqBody.timeOffsetInScene.value();
         
         patch.push_back({
             {"op", "replace"},
@@ -1727,8 +1579,9 @@ ApiResult ExtendedControllerAPI::adjustVoiceOver(const AdjustVoiceOverReqBody& r
     
     // Convert to JSON data equivalent for API compatibility
     auto resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
+    nlohmann::json responseData = toJson(resultData);
     
-    return ApiResult::success(patch, resultData);
+    return ApiResult::success(patch, responseData);
 }
 
 ApiResult ExtendedControllerAPI::editScript(const ProjectSceneEditScriptReqBody& reqBody) {
@@ -1803,12 +1656,12 @@ ApiResult ExtendedControllerAPI::setSceneTranscript(const ProjectSceneSetTranscr
     TranscriptItem item;
     item.content = reqBody.newText;
     item.start_time = 0.0;
-    item.end_time = scene->duration / 1000.0; // Convert ms to seconds
+    item.end_time = scene->duration.value_or(0) / 1000.0; // Convert ms to seconds
     item.type = "pronunciation";
     scene->transcript->items.push_back(item);
     
     // Update total transcript duration
-    scene->transcript->duration = scene->duration;
+    scene->transcript->duration = scene->duration.value_or(0);
     
     // Create JSON patch for the change
     nlohmann::json patch = nlohmann::json::array();
@@ -1893,7 +1746,7 @@ ApiResult ExtendedControllerAPI::setMainStoryOrder(const SetMainStoryOrderReqBod
     for (const auto& sceneUuid : reqBody.timelineUuids) {
         auto it = std::find_if(scenes.begin(), scenes.end(),
             [&sceneUuid](const ExtendedProjectScene& scene) {
-                return scene.uuid == sceneUuid;
+                return scene.sceneUuid == sceneUuid;
             });
         if (it != scenes.end()) {
             reorderedScenes.push_back(*it);
@@ -1902,7 +1755,7 @@ ApiResult ExtendedControllerAPI::setMainStoryOrder(const SetMainStoryOrderReqBod
     
     // Then add any remaining scenes that weren't in the order list
     for (const auto& scene : scenes) {
-        if (std::find(reqBody.timelineUuids.begin(), reqBody.timelineUuids.end(), scene.uuid) 
+        if (std::find(reqBody.timelineUuids.begin(), reqBody.timelineUuids.end(), scene.sceneUuid) 
             == reqBody.timelineUuids.end()) {
             reorderedScenes.push_back(scene);
         }
@@ -1915,7 +1768,7 @@ ApiResult ExtendedControllerAPI::setMainStoryOrder(const SetMainStoryOrderReqBod
     int currentOffset = 0;
     for (auto& scene : scenes) {
         scene.timeOffsetInProject = currentOffset;
-        currentOffset += scene.duration;
+        currentOffset += scene.duration.value_or(0);
     }
     
     nlohmann::json patch = nlohmann::json::array();
@@ -1958,7 +1811,12 @@ ApiResult ExtendedControllerAPI::changeFitType(const ChangeFitTypeReqBody& reqBo
     
     // Apply to all scenes
     for (auto& scene : dataStore->getProject().scenes) {
-        scene.scale = scaleValue;
+        scene.scale = nlohmann::json{
+            {"scaleX", scaleValue.scaleX},
+            {"scaleY", scaleValue.scaleY},
+            {"offsetX", scaleValue.offsetX},
+            {"offsetY", scaleValue.offsetY}
+        };
     }
     
     nlohmann::json patch = nlohmann::json::array();
@@ -2023,7 +1881,15 @@ ApiResult ExtendedControllerAPI::changeScaleToAll(const UpdateProjectScaleReqBod
         
         // If this scene contains the timeline, update its scale
         if (sceneContainsTimeline) {
-            scene.scale = reqBody.scale;
+            scene.scale = nlohmann::json{
+                {"scaleX", reqBody.scale.scaleX},
+                {"scaleY", reqBody.scale.scaleY},
+                {"offsetX", reqBody.scale.offsetX},
+                {"offsetY", reqBody.scale.offsetY}
+            };
+            if (reqBody.scale.cropRect.has_value()) {
+                scene.scale.value()["cropRect"] = reqBody.scale.cropRect.value();
+            }
             timelineFound = true;
         }
     }
@@ -2173,7 +2039,8 @@ ApiResult ExtendedControllerAPI::setSceneScale(const PsSceneScaleReqBody& reqBod
         addTimelineScale(timeline, timeline.uuid);
     }
     
-    return ApiResult::success(patches, resultData);
+    nlohmann::json responseData = resultData; // resultData is already the JSON structure we need
+    return ApiResult::success(patches, responseData);
 }
 
 // Core business logic implementation - assembleSceneAndTimelines
@@ -2275,8 +2142,9 @@ ApiResult ExtendedControllerAPI::addBgm(const ProjectBgmAddReqBody& reqBody) {
     
     // Convert to JSON data equivalent for API compatibility  
     auto resultData = convertProjectToProjectAndScenesVo();
+    nlohmann::json responseData = toJson(resultData);
     
-    return ApiResult::success(patch, resultData);
+    return ApiResult::success(patch, responseData);
 }
 
 ApiResult ExtendedControllerAPI::deleteBgm(const ProjectBgmDeleteReqBody& reqBody) {
@@ -2335,8 +2203,9 @@ ApiResult ExtendedControllerAPI::deleteBgm(const ProjectBgmDeleteReqBody& reqBod
     
     // Convert to JSON data equivalent for API compatibility
     auto resultData = convertProjectToProjectAndScenesVo();
+    nlohmann::json responseData = toJson(resultData);
     
-    return ApiResult::success(patches, resultData);
+    return ApiResult::success(patches, responseData);
 }
 
 ApiResult ExtendedControllerAPI::editBgm(const ProjectBgmEditReqBody& reqBody) {
@@ -2376,8 +2245,9 @@ ApiResult ExtendedControllerAPI::editBgm(const ProjectBgmEditReqBody& reqBody) {
     
     // Convert to JSON data equivalent for API compatibility
     auto resultData = convertProjectToProjectAndScenesVo();
+    nlohmann::json responseData = toJson(resultData);
     
-    return ApiResult::success(patch, resultData);
+    return ApiResult::success(patch, responseData);
 }
 
 ApiResult ExtendedControllerAPI::adjustBgmAudio(const PsSceneTimelineVolumeReqBody& reqBody) {
@@ -2393,8 +2263,9 @@ ApiResult ExtendedControllerAPI::adjustBgmAudio(const PsSceneTimelineVolumeReqBo
     
     // Convert to JSON data equivalent for API compatibility
     auto resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
+    nlohmann::json responseData = toJson(resultData);
     
-    return ApiResult::success(patch, resultData);
+    return ApiResult::success(patch, responseData);
 }
 
 // Tier 2 Style and Effects API implementations
@@ -2615,7 +2486,7 @@ ApiResult ExtendedControllerAPI::mergeScenes(const ExtendedProjectSceneMergeReqB
     
     // Step 5: Create merged scene (following Java backend logic)
     ExtendedProjectScene mergedScene = *formerScene; // Copy former scene as base
-    mergedScene.uuid = genUuid(); // Generate new UUID
+    mergedScene.sceneUuid = genUuid(); // Generate new UUID
     
     // Set merged scene name (enhanced normalization & dedupe)
     auto trim = [](const std::string& s) {
@@ -2642,14 +2513,14 @@ ApiResult ExtendedControllerAPI::mergeScenes(const ExtendedProjectSceneMergeReqB
     }
     
     // Step 7: Calculate merged duration (Java backend logic) with safety guards
-    int originalDuration = formerScene->duration + latterScene->duration;
+    int originalDuration = formerScene->duration.value_or(0) + latterScene->duration.value_or(0);
     int formerScenePauseTime = formerScene->pauseTime.value_or(0); // Java: getCurrentPauseFromScene(formerScene)
     int latterScenePauseTime = latterScene->pauseTime.value_or(0); // Handle optional pauseTime
     
     // Important: Use latterScenePauseTime in calculation (Java backend logic for proper duration calculation)
-    mergedScene.duration = formerScene->duration + latterScene->duration - latterScenePauseTime;
+    mergedScene.duration = formerScene->duration.value_or(0) + latterScene->duration.value_or(0) - latterScenePauseTime;
     // Guard: duration must be at least 0 (optional parity clamp)
-    if (parityOptions.clampMergedSceneDuration && mergedScene.duration < 0) {
+    if (parityOptions.clampMergedSceneDuration && mergedScene.duration.value_or(0) < 0) {
         mergedScene.duration = 0; // Clamp
     }
     // Set pause time from latter scene (Java backend logic)
@@ -2657,12 +2528,12 @@ ApiResult ExtendedControllerAPI::mergeScenes(const ExtendedProjectSceneMergeReqB
     // Guard: pauseTime can't exceed merged duration (parity clamp)
     if (parityOptions.clampMergedSceneDuration &&
         mergedScene.pauseTime.has_value() &&
-        mergedScene.pauseTime.value() > mergedScene.duration) {
+        mergedScene.pauseTime.value() > mergedScene.duration.value_or(0)) {
         mergedScene.pauseTime = mergedScene.duration; // Clamp
     }
     
     // Calculate scene duration change for subsequent timeline offset updates
-    int sceneDurationChange = mergedScene.duration - originalDuration;
+    int sceneDurationChange = mergedScene.duration.value_or(0) - originalDuration;
     
     // Step 8: Merge transcripts with complex logic (Java backend: TranscriptUtil.mergeTranscripts)
     if (formerScene->transcript.has_value() && latterScene->transcript.has_value()) {
@@ -2705,18 +2576,18 @@ ApiResult ExtendedControllerAPI::mergeScenes(const ExtendedProjectSceneMergeReqB
     // Add latter scene timelines with adjusted offsets (Java backend: timelineService.handleMergeScenee)
     for (auto timeline : latterScene->aRolls) {
         // Adjust timeline offsets based on former scene duration
-        timeline.timeOffsetInProject += formerScene->duration;
-        timeline.sceneUuid = mergedScene.uuid; // Update scene reference
+        timeline.timeOffsetInProject += formerScene->duration.value_or(0);
+        timeline.sceneUuid = mergedScene.sceneUuid; // Update scene reference
         mergedScene.aRolls.push_back(timeline);
     }
     for (auto timeline : latterScene->bRolls) {
-        timeline.timeOffsetInProject += formerScene->duration;
-        timeline.sceneUuid = mergedScene.uuid; // Update scene reference
+        timeline.timeOffsetInProject += formerScene->duration.value_or(0);
+        timeline.sceneUuid = mergedScene.sceneUuid; // Update scene reference
         mergedScene.bRolls.push_back(timeline);
     }
     for (auto voiceOver : latterScene->voiceOvers) {
-        voiceOver.timeOffsetInProject += formerScene->duration;
-        voiceOver.sceneUuid = mergedScene.uuid; // Update scene reference
+        voiceOver.timeOffsetInProject += formerScene->duration.value_or(0);
+        voiceOver.sceneUuid = mergedScene.sceneUuid; // Update scene reference
         mergedScene.voiceOvers.push_back(voiceOver);
     }
     
@@ -2741,10 +2612,10 @@ ApiResult ExtendedControllerAPI::mergeScenes(const ExtendedProjectSceneMergeReqB
     
     // Find positions of original scenes
     for (size_t i = 0; i < dataStore->getProject().scenes.size(); ++i) {
-        if (dataStore->getProject().scenes[i].uuid == formerScene->uuid) {
+        if (dataStore->getProject().scenes[i].sceneUuid == formerScene->sceneUuid) {
             insertIndex = i; // Insert at former scene position
             removeIndices.push_back(i);
-        } else if (dataStore->getProject().scenes[i].uuid == latterScene->uuid) {
+        } else if (dataStore->getProject().scenes[i].sceneUuid == latterScene->sceneUuid) {
             removeIndices.push_back(i);
         }
     }
@@ -2756,17 +2627,18 @@ ApiResult ExtendedControllerAPI::mergeScenes(const ExtendedProjectSceneMergeReqB
     nlohmann::json scenePatches = nlohmann::json::array();
     
     // Add merged scene
-    scenePatches.push_back({
+    nlohmann::json mergedScenePatch = {
         {"op", "add"},
         {"path", "/scenes/" + std::to_string(insertIndex)},
         {"value", {
-            {"uuid", mergedScene.uuid},
+            {"uuid", mergedScene.sceneUuid},
             {"name", mergedScene.name},
-            {"duration", mergedScene.duration},
-            {"timeOffsetInProject", mergedScene.timeOffsetInProject},
+            {"duration", mergedScene.duration.value_or(0)},
+            {"timeOffsetInProject", mergedScene.timeOffsetInProject.value_or(0)},
             {"sceneType", static_cast<int>(mergedScene.sceneType)}
         }}
-    });
+    };
+    scenePatches.push_back(mergedScenePatch);
     
     // Remove original scenes (in reverse order)
     for (int idx : removeIndices) {
@@ -2778,8 +2650,8 @@ ApiResult ExtendedControllerAPI::mergeScenes(const ExtendedProjectSceneMergeReqB
     
     // Step 12: Apply changes to data store
     // Save original scene UUIDs before deleting the scenes
-    std::string formerSceneUuid = formerScene->uuid;
-    std::string latterSceneUuid = latterScene->uuid;
+    std::string formerSceneUuid = formerScene->sceneUuid;
+    std::string latterSceneUuid = latterScene->sceneUuid;
     
     dataStore->getProject().scenes.insert(dataStore->getProject().scenes.begin() + insertIndex, mergedScene);
     
@@ -2797,7 +2669,7 @@ ApiResult ExtendedControllerAPI::mergeScenes(const ExtendedProjectSceneMergeReqB
     // Step 12.5: Update timeline sceneUuid references (Java backend logic)
     for (auto& timeline : dataStore->getProject().timelines) {
         if (timeline.sceneUuid == formerSceneUuid || timeline.sceneUuid == latterSceneUuid) {
-            timeline.sceneUuid = mergedScene.uuid;
+            timeline.sceneUuid = mergedScene.sceneUuid;
         }
     }
     
@@ -2805,8 +2677,8 @@ ApiResult ExtendedControllerAPI::mergeScenes(const ExtendedProjectSceneMergeReqB
     if (sceneDurationChange != 0) {
         // Update time offsets for all scenes after the merged scene
         for (auto& scene : dataStore->getProject().scenes) {
-            if (scene.timeOffsetInProject > mergedScene.timeOffsetInProject && scene.uuid != mergedScene.uuid) {
-                scene.timeOffsetInProject += sceneDurationChange;
+            if (scene.timeOffsetInProject.value_or(0) > mergedScene.timeOffsetInProject.value_or(0) && scene.sceneUuid != mergedScene.sceneUuid) {
+                scene.timeOffsetInProject = scene.timeOffsetInProject.value_or(0) + sceneDurationChange;
                 
                 // Update all timeline offsets within the affected scene
                 for (auto& timeline : scene.aRolls) {
@@ -2824,7 +2696,7 @@ ApiResult ExtendedControllerAPI::mergeScenes(const ExtendedProjectSceneMergeReqB
         // Also update global timeline references
         for (auto& timeline : dataStore->getProject().timelines) {
             if (timeline.timeOffsetInProject > mergedScene.timeOffsetInProject && 
-                timeline.sceneUuid != mergedScene.uuid) {
+                timeline.sceneUuid != mergedScene.sceneUuid) {
                 timeline.timeOffsetInProject += sceneDurationChange;
             }
         }
@@ -2843,9 +2715,10 @@ ApiResult ExtendedControllerAPI::mergeScenes(const ExtendedProjectSceneMergeReqB
     dataStore->recomputeOffsets();
     
     // Step 14: Create ProjectAndSceneVo equivalent data for API compatibility (following Java backend)
-    nlohmann::json resultData = convertProjectToProjectAndSceneVo(mergedScene.uuid);
+    auto resultData = convertProjectToProjectAndSceneVo(mergedScene.sceneUuid);
+    nlohmann::json responseData = toJson(resultData);
     
-    return ApiResult::success(patches, resultData);
+    return ApiResult::success(patches, responseData);
 }
 
 ApiResult ExtendedControllerAPI::addSceneAudio(const AddSceneAudioReqBody& reqBody) {
@@ -2859,7 +2732,7 @@ ApiResult ExtendedControllerAPI::addSceneAudio(const AddSceneAudioReqBody& reqBo
     // Step 1: Find and validate the target scene
     auto sceneIt = std::find_if(scenes.begin(), scenes.end(), 
         [&reqBody](const ExtendedProjectScene& scene) {
-            return scene.uuid == reqBody.sceneUuid;
+            return scene.sceneUuid == reqBody.sceneUuid;
         });
     
     if (sceneIt == scenes.end()) {
@@ -2899,7 +2772,7 @@ ApiResult ExtendedControllerAPI::addSceneAudio(const AddSceneAudioReqBody& reqBo
     newAudioTimeline.assetUuid = reqBody.entityUuid;
     newAudioTimeline.category = ProjectTimelineCategoryEnum::STORY_AUDIO;
     newAudioTimeline.timeOffsetInScene = 0;
-    newAudioTimeline.timeOffsetInProject = targetScene.timeOffsetInProject;
+    newAudioTimeline.timeOffsetInProject = targetScene.timeOffsetInProject.value_or(0);
     newAudioTimeline.startTime = 0;
     // For now, use a default duration - in real implementation this would come from asset
     newAudioTimeline.duration = 5000; // 5 seconds default
@@ -2917,15 +2790,15 @@ ApiResult ExtendedControllerAPI::addSceneAudio(const AddSceneAudioReqBody& reqBo
     targetScene.timelines.insert(targetScene.timelines.end(), targetScene.bRolls.begin(), targetScene.bRolls.end());
     
     // Step 6: Update scene duration to match audio duration
-    int oldDuration = targetScene.duration;
+    int oldDuration = targetScene.duration.value_or(0);
     targetScene.duration = newAudioTimeline.duration;
-    int durationChange = targetScene.duration - oldDuration;
+    int durationChange = targetScene.duration.value_or(0) - oldDuration;
     
     // Step 7: Update subsequent scenes' time offsets
     if (durationChange != 0) {
         for (auto& scene : scenes) {
-            if (scene.timeOffsetInProject > targetScene.timeOffsetInProject) {
-                scene.timeOffsetInProject += durationChange;
+            if (scene.timeOffsetInProject.value_or(0) > targetScene.timeOffsetInProject.value_or(0)) {
+                scene.timeOffsetInProject = scene.timeOffsetInProject.value_or(0) + durationChange;
                 
                 // Update timelines within affected scenes
                 for (auto& timeline : scene.aRolls) {
@@ -2943,11 +2816,12 @@ ApiResult ExtendedControllerAPI::addSceneAudio(const AddSceneAudioReqBody& reqBo
     
     // Step 8: Generate patches
     size_t sceneIndex = std::distance(scenes.begin(), sceneIt);
-    patches.push_back({
+    nlohmann::json durationPatch = {
         {"op", "replace"},
         {"path", "/scenes/" + std::to_string(sceneIndex) + "/duration"},
-        {"value", targetScene.duration}
-    });
+        {"value", targetScene.duration.value_or(0)}
+    };
+    patches.push_back(durationPatch);
     
     patches.push_back({
         {"op", "add"},
@@ -2973,263 +2847,97 @@ ApiResult ExtendedControllerAPI::addSceneAudio(const AddSceneAudioReqBody& reqBo
     
     // Convert to JSON data equivalent for API compatibility
     auto resultData = convertProjectToProjectAndSceneVo(reqBody.sceneUuid);
+    nlohmann::json responseData = toJson(resultData);
     
-    return ApiResult::success(patches, resultData);
+    return ApiResult::success(patches, responseData);
 }
 
-} // namespace pjson
-
-// VO conversion method implementations
-namespace pjson {
-
-nlohmann::json ExtendedControllerAPI::convertSceneToProjectSceneVo(const ExtendedProjectScene& scene) const {
-    nlohmann::json sceneVo;
+// Convert method implementations
+ExtendedProjectAndSceneVo ExtendedControllerAPI::convertProjectToProjectAndSceneVo(const std::string& sceneUuid) const {
+    ExtendedProjectAndSceneVo result;
     
-    sceneVo["sceneUuid"] = scene.uuid;
-    sceneVo["projectUuid"] = scene.projectUuid;
-    sceneVo["name"] = scene.name;
-    sceneVo["sceneType"] = static_cast<int>(scene.sceneType);
-    sceneVo["timeOffsetInProject"] = scene.timeOffsetInProject;
-    sceneVo["duration"] = scene.duration;
-    sceneVo["audioFlag"] = scene.audioFlag;
-    
-    // Convert transcript
-    if (scene.transcript.has_value()) {
-        nlohmann::json transcript;
-        transcript["text"] = scene.transcript->text;
-        transcript["modified"] = scene.transcript->modified;
-        transcript["duration"] = scene.transcript->duration;
-        
-        // Convert transcript items
-        nlohmann::json items = nlohmann::json::array();
-        for (const auto& item : scene.transcript->items) {
-            nlohmann::json itemJson;
-            itemJson["content"] = item.content;
-            itemJson["start_time"] = item.start_time;
-            itemJson["end_time"] = item.end_time;
-            itemJson["type"] = item.type;
-            if (item.sentence_end.has_value()) {
-                itemJson["sentence_end"] = item.sentence_end.value();
-            }
-            if (!item.alternatives.empty()) {
-                nlohmann::json alts = nlohmann::json::array();
-                for (const auto& alt : item.alternatives) {
-                    nlohmann::json altJson;
-                    altJson["content"] = alt.content;
-                    altJson["confidence"] = alt.confidence;
-                    alts.push_back(altJson);
-                }
-                itemJson["alternatives"] = alts;
-            }
-            items.push_back(itemJson);
-        }
-        transcript["items"] = items;
-        
-        // Convert modification status
-        nlohmann::json modStatus;
-        modStatus["changed"] = scene.transcript->modificationStatus.changed;
-        modStatus["voiceRedo"] = scene.transcript->modificationStatus.voiceRedo;
-        modStatus["recommendFootageRedo"] = scene.transcript->modificationStatus.recommendFootageRedo;
-        transcript["transcriptModifiedStatus"] = modStatus;
-        
-        sceneVo["transcript"] = transcript;
-    }
-    
-    // Convert timelines (aRolls, bRolls)
-    nlohmann::json aRolls = nlohmann::json::array();
-    for (const auto& timeline : scene.aRolls) {
-        nlohmann::json timelineJson;
-        timelineJson["uuid"] = timeline.uuid;
-        timelineJson["assetUuid"] = timeline.assetUuid;
-        timelineJson["category"] = static_cast<int>(timeline.category);
-        timelineJson["timeOffsetInScene"] = timeline.timeOffsetInScene;
-        timelineJson["timeOffsetInProject"] = timeline.timeOffsetInProject;
-        timelineJson["duration"] = timeline.duration;
-        timelineJson["startTime"] = timeline.startTime;
-        timelineJson["endTime"] = timeline.endTime;
-        timelineJson["volume"] = timeline.volume;
-        timelineJson["mute"] = timeline.mute;
-        timelineJson["speed"] = timeline.speed;
-        aRolls.push_back(timelineJson);
-    }
-    sceneVo["aRolls"] = aRolls;
-    
-    nlohmann::json bRolls = nlohmann::json::array();
-    for (const auto& timeline : scene.bRolls) {
-        nlohmann::json timelineJson;
-        timelineJson["uuid"] = timeline.uuid;
-        timelineJson["assetUuid"] = timeline.assetUuid;
-        timelineJson["category"] = static_cast<int>(timeline.category);
-        timelineJson["timeOffsetInScene"] = timeline.timeOffsetInScene;
-        timelineJson["timeOffsetInProject"] = timeline.timeOffsetInProject;
-        timelineJson["duration"] = timeline.duration;
-        timelineJson["startTime"] = timeline.startTime;
-        timelineJson["endTime"] = timeline.endTime;
-        timelineJson["volume"] = timeline.volume;
-        timelineJson["mute"] = timeline.mute;
-        timelineJson["speed"] = timeline.speed;
-        bRolls.push_back(timelineJson);
-    }
-    sceneVo["bRolls"] = bRolls;
-    
-    // Convert voice overs
-    nlohmann::json voiceOvers = nlohmann::json::array();
-    for (const auto& vo : scene.voiceOvers) {
-        nlohmann::json voJson;
-        voJson["uuid"] = vo.uuid;
-        voJson["assetUuid"] = vo.assetUuid;
-        voJson["category"] = static_cast<int>(vo.category);
-        voJson["timeOffsetInProject"] = vo.timeOffsetInProject;
-        voJson["duration"] = vo.duration;
-        voJson["startTime"] = vo.startTime;
-        voJson["endTime"] = vo.endTime;
-        voJson["volume"] = vo.volume;
-        voJson["audioLink"] = vo.audioLink;
-        voJson["voiceUuid"] = vo.voiceUuid;
-        voJson["audioOnly"] = vo.audioOnly;
-        voiceOvers.push_back(voJson);
-    }
-    sceneVo["voiceOvers"] = voiceOvers;
-    
-    // Add pause time
-    if (scene.pauseTime.has_value()) {
-        sceneVo["pauseTime"] = scene.pauseTime.value();
-    } else {
-        sceneVo["pauseTime"] = 0;
-    }
-    
-    return sceneVo;
-}
-
-nlohmann::json ExtendedControllerAPI::convertAssetsMap(const std::unordered_map<std::string, ProjectSceneAsset>& assets) const {
-    nlohmann::json assetsJson;
-    
-    for (const auto& [assetId, asset] : assets) {
-        nlohmann::json assetJson;
-        assetJson["assetId"] = asset.assetId;
-        assetJson["uuid"] = asset.uuid;
-        assetJson["assetLink"] = asset.assetLink;
-        assetJson["assetType"] = asset.assetType;
-        assetJson["duration"] = asset.duration;
-        assetJson["newMedia"] = asset.newMedia;
-        
-        if (asset.audioLink.has_value()) {
-            assetJson["audioLink"] = asset.audioLink.value();
-        }
-        if (asset.coverLink.has_value()) {
-            assetJson["coverLink"] = asset.coverLink.value();
-        }
-        if (asset.mediaId.has_value()) {
-            assetJson["mediaId"] = asset.mediaId.value();
-        }
-        if (asset.voiceId.has_value()) {
-            assetJson["voiceId"] = asset.voiceId.value();
-        }
-        if (asset.width.has_value()) {
-            assetJson["width"] = asset.width.value();
-        }
-        if (asset.height.has_value()) {
-            assetJson["height"] = asset.height.value();
-        }
-        if (asset.format.has_value()) {
-            assetJson["format"] = asset.format.value();
-        }
-        
-        assetsJson[assetId] = assetJson;
-    }
-    
-    return assetsJson;
-}
-
-nlohmann::json ExtendedControllerAPI::convertProjectToProjectAndSceneVo(const std::string& sceneUuid) const {
     if (!dataStore) {
-        return nlohmann::json::object();
+        return result;
     }
     
     const auto& project = dataStore->getProject();
     
-    // Find the specific scene
-    const ExtendedProjectScene* targetScene = nullptr;
+    // 查找指定的场景
     for (const auto& scene : project.scenes) {
-        if (scene.uuid == sceneUuid) {
-            targetScene = &scene;
-            break;
+        if (scene.sceneUuid == sceneUuid) {
+            result.projectUuid = project.projectUuid;
+            result.sceneUuid = sceneUuid;
+            result.scene = scene;
+            
+            // 复制项目级别的资产
+            result.assets = project.assets;
+            
+            return result;
         }
     }
     
-    if (!targetScene) {
-        return nlohmann::json::object();
-    }
-    
-    nlohmann::json result;
-    
-    // Set project info (matching ProjectAndSceneVo structure)
-    result["projectUuid"] = project.projectUuid;
-    result["sceneUuid"] = sceneUuid;
-    
-    // Convert the scene
-    result["scene"] = convertSceneToProjectSceneVo(*targetScene);
-    
-    // Convert assets
-    result["assets"] = convertAssetsMap(project.assets);
+    // 如果没有找到场景，只设置基本信息
+    result.projectUuid = project.projectUuid;
+    result.sceneUuid = sceneUuid;
     
     return result;
 }
 
-nlohmann::json ExtendedControllerAPI::convertProjectToProjectAndScenesVo() const {
+ExtendedProjectAndScenesVo ExtendedControllerAPI::convertProjectToProjectAndScenesVo() const {
+    ExtendedProjectAndScenesVo result;
+    
     if (!dataStore) {
-        return nlohmann::json::object();
+        return result;
     }
     
     const auto& project = dataStore->getProject();
-    nlohmann::json result;
     
-    // Project basic info
-    result["projectUuid"] = project.projectUuid;
-    result["ownerUuid"] = project.ownerUuid;
-    result["status"] = static_cast<int>(project.status);
+    // Copy project-level information
+    result.projectUuid = project.projectUuid;
+    result.ownerUuid = project.ownerUuid;
+    result.status = project.status;
     
-    // Convert all scenes
-    nlohmann::json scenes = nlohmann::json::array();
-    for (const auto& scene : project.scenes) {
-        scenes.push_back(convertSceneToProjectSceneVo(scene));
-    }
-    result["scenes"] = scenes;
+    // Copy scenes
+    result.scenes = project.scenes;
     
-    // Convert assets
-    result["assets"] = convertAssetsMap(project.assets);
+    // Copy assets
+    result.assets = project.assets;
+    
+    // Copy style and text information
+    result.text = project.text;
+    result.style = project.style;
+    
+    // Copy new fields
+    result.syntheticAll = project.syntheticAll;
+    result.padColor = project.padColor;
+    result.videoFormat = project.videoFormat;
+    result.brollShorterPolicyKey = project.brollShorterPolicyKey;
     
     // Convert BGMs
-    nlohmann::json bgms = nlohmann::json::array();
-    for (const auto& bgm : project.bgms) {
-        nlohmann::json bgmJson;
-        bgmJson["uuid"] = bgm.uuid;
-        bgmJson["assetUuid"] = bgm.assetUuid;
-        bgmJson["assetLink"] = bgm.assetLink;
-        bgmJson["startTime"] = bgm.startTime;
-        bgmJson["duration"] = bgm.duration;
-        bgmJson["volume"] = bgm.volume;
-        bgmJson["loop"] = bgm.loop;
-        if (bgm.adjustedBgmLink.has_value()) {
-            bgmJson["adjustedBgmLink"] = bgm.adjustedBgmLink.value();
-        }
-        bgms.push_back(bgmJson);
-    }
-    result["bgms"] = bgms;
+    result.bgms = project.bgms;
     
     // Add synthetic voices
-    nlohmann::json syntheticVoices;
-    for (const auto& [voiceId, voice] : project.syntheticVoices) {
-        nlohmann::json voiceJson;
-        voiceJson["voiceId"] = voice.voiceId;
-        voiceJson["voiceName"] = voice.voiceName;
-        voiceJson["language"] = voice.language;
-        voiceJson["gender"] = voice.gender;
-        syntheticVoices[voiceId] = voiceJson;
-    }
-    result["syntheticVoices"] = syntheticVoices;
+    result.syntheticVoices = project.syntheticVoices;
     
     return result;
+}
+
+} // 结束 ExtendedControllerAPI 类
+
+// JSON serialization helper functions
+namespace pjson {
+
+// 使用成员方法的重载函数
+nlohmann::json toJson(const ExtendedProjectAndScenesVo& vo) {
+    return vo.toJson();
+}
+
+nlohmann::json toJson(const ExtendedProjectAndSceneVo& vo) {
+    return vo.toJson();
+}
+
+nlohmann::json toJson(const ExtendedProjectScene& scene) {
+    return scene.toJson();
 }
 
 } // namespace pjson

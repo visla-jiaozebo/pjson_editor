@@ -65,11 +65,11 @@ private:
     std::shared_ptr<ExtendedDataStore> dataStore{nullptr};
     BackendParityOptions parityOptions{};
     
-    // Helper methods for VO conversion
-    nlohmann::json convertSceneToProjectSceneVo(const ExtendedProjectScene& scene) const;
-    nlohmann::json convertProjectToProjectAndSceneVo(const std::string& sceneUuid) const;
-    nlohmann::json convertProjectToProjectAndScenesVo() const;
-    nlohmann::json convertAssetsMap(const std::unordered_map<std::string, ProjectSceneAsset>& assets) const;
+    // Helper methods for VO conversion (now return structured data instead of JSON)
+    ExtendedProjectScene convertSceneToProjectSceneVo(const ExtendedProjectScene& scene) const;
+    ExtendedProjectAndSceneVo convertProjectToProjectAndSceneVo(const std::string& sceneUuid) const;
+    ExtendedProjectAndScenesVo convertProjectToProjectAndScenesVo() const;
+    std::unordered_map<std::string, ProjectSceneAsset> convertAssetsMap(const std::unordered_map<std::string, ProjectSceneAsset>& assets) const;
     
 public:
     void setDataStore(std::shared_ptr<ExtendedDataStore> ds) { dataStore = ds; }
