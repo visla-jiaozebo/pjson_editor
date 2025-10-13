@@ -1,0 +1,17 @@
+{
+  "name": "pjson-editor-proxy",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Development CORS proxy for PJsonEditor WASM/browser tests",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "TARGET_BASE_URL=https://api-snapshot.dev01.vislaus.cn NODE_ENV=development node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "http-proxy-middleware": "^3.0.2",
+    "morgan": "^1.10.0"
+  }
+}

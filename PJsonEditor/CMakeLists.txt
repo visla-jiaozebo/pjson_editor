@@ -22,10 +22,10 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(doctest)
 
 # Enable testing
-enable_testing()
+# enable_testing()
 
 # Library target
-add_library(pjson_editor 
+add_library(pjson_editor
     src/ControllerAPI.cpp
     src/DataStore.cpp
     src/ApiMessage.cpp
@@ -34,53 +34,40 @@ add_library(pjson_editor
 
 target_include_directories(pjson_editor
     PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
 target_link_libraries(pjson_editor
     PUBLIC
-        nlohmann_json::nlohmann_json
+    nlohmann_json::nlohmann_json
 )
 
 # Set up the main target as an alias for easier CMake usage
 add_library(PJsonEditor::pjson_editor ALIAS pjson_editor)
 
-# Doctest based tests
-add_executable(test_scene
-    tests/test_scene.cpp
-    tests/impl/server_login.cpp
-)
-
-target_link_libraries(test_scene
-    PRIVATE
-        pjson_editor
-        doctest::doctest
-)
-
-# Register the test with CTest
-add_test(NAME test_addscene_doctest COMMAND test_addscene_doctest)
-
 # Emscripten-specific settings
 if(EMSCRIPTEN)
     message(STATUS "Configuring for Emscripten - Simple WASM build")
-    
+
     # Simple WASM executable without glue code
     add_executable(pjson_editor_wasm
         src/wasm_bindings_simple.cpp
     )
-    
+
     target_link_libraries(pjson_editor_wasm
         PRIVATE
-            pjson_editor
+        pjson_editor
     )
-    
+
     # Minimal Emscripten flags for simple WASM build
     set_target_properties(pjson_editor_wasm PROPERTIES
         SUFFIX ".js"
         COMPILE_FLAGS "-std=c++17 -O2 -s WASM=1"
         LINK_FLAGS "-std=c++17 -O2 -s WASM=1 -s NO_EXIT_RUNTIME=1 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap'] --bind -s ALLOW_MEMORY_GROWTH=1"
     )
+else()
+    add_subdirectory(tests)
 endif()
 
 # Install targets

@@ -9,7 +9,7 @@
 class api_request_client {
 private:
   static const std::string BASE_URL;
-  CurlHttpClient http_client;
+  HttpClient http_client;
   std::string auth_token;
   std::string project_uuid;
 
@@ -18,19 +18,19 @@ public:
     std::cout << "=== Real Server API Tester Initialized ===" << std::endl;
     std::cout << "Base URL: " << BASE_URL << std::endl;
     http_client.dump_folder(_dump_folder);
-    // check if /tmp/TOKEN_FILE exists and last modified time is within 1 hour
-    if (std::filesystem::exists("/tmp/TOKEN_FILE")) {
-      std::cout << "/tmp/TOKEN_FILE exists, checking timestamp..." << std::endl;
+    // check if ../../../demo/TOKEN_FILE exists and last modified time is within 1 hour
+    if (std::filesystem::exists("../../../demo/TOKEN_FILE")) {
+      std::cout << "../../../demo/TOKEN_FILE exists, checking timestamp..." << std::endl;
       std::filesystem::file_time_type ftime =
-          std::filesystem::last_write_time("/tmp/TOKEN_FILE");
+          std::filesystem::last_write_time("../../../demo/TOKEN_FILE");
       std::filesystem::file_time_type current_time =
           std::filesystem::file_time_type::clock::now();
       std::chrono::duration<double> seconds = current_time - ftime;
       if (seconds.count() < 3600) { // within 1 hour
-        std::ifstream ifs("/tmp/TOKEN_FILE");
+        std::ifstream ifs("../../../demo/TOKEN_FILE");
         std::getline(ifs, auth_token);
         ifs.close();
-        std::cout << "Using cached auth token from /tmp/TOKEN_FILE"
+        std::cout << "Using cached auth token from ../../../demo/TOKEN_FILE"
                   << std::endl;
       }
     }

@@ -1,18 +1,76 @@
-#ifdef EMSCRIPTEN
+
+#include "nlohmann/json_fwd.hpp"
 #include <emscripten/bind.h>
 #include <emscripten/val.h>
-#endif
-
 #include <string>
 #include <memory>
 #include <pjson_editor/pjson_editor.hpp>
 #include <pjson_editor/ExtendedAPI.h>
 
-#ifdef EMSCRIPTEN
 using namespace emscripten;
-#endif
 using namespace pjson;
 
+
+//   std::string method;
+//   std::string url;
+//   nlohmann::json body;
+//   std::map<std::string, std::string> headers;
+//   std::string _requestId; // internal use only
+
+std::shared_ptr<Request> makeGetRequest(const std::string& url) {
+    auto req = std::make_shared<Request>();
+    req->method = "GET";
+    req->url = url;
+    return req;
+}
+
+std::shared_ptr<Request> makeRequest(const emscripten::val requestFromJS) {
+    auto req = std::make_shared<Request>();
+    // req->method = method;
+    // req->url = url;
+    // req->body = nlohmann::json::parse(body);
+    if (requestFromJS.hasOwnProperty("body")) {
+        req->body = nlohmann::json::parse(requestFromJS["body"].as<std::string>());
+    } 
+    if (requestFromJS.hasOwnProperty("headers")) {
+        emscripten::val headers = requestFromJS["headers"];
+        emscripten::val keys = emscripten::val::global("Object").call<emscripten::val>("keys", headers);
+        int length = keys["length"].as<int>();
+        for (int i = 0; i < length; i++) {
+            std::string key = keys[i].as<std::string>();
+            std::string value = headers[key].as<std::string>();
+            req->headers[key] = value;
+        }
+    } 
+    if (requestFromJS.hasOwnProperty("method")) {
+        req->method = requestFromJS["method"].as<std::string>();
+        req->url = requestFromJS["url"].as<std::string>();
+    } 
+    else {
+        req->method = "GET";
+        req->url = requestFromJS.as<std::string>();
+    }
+    return req;
+}
+
+void smart_ptr_function(std::shared_ptr<Request> req) {
+    // Just a placeholder function to demonstrate usage
+    // In practice, you would call the PJsonEditor methods here
+    emscripten::val console = emscripten::val::global("console");
+    console.call<void>("log", std::string("Request Method: ") + req->method);
+    console.call<void>("log", std::string("Request URL: ") + req->url);
+    console.call<void>("log", std::string("Request Body: ") + req->body.dump());
+    console.call<void>("log", std::string("Request Headers:"));
+    for (const auto& [key, value] : req->headers) {
+        console.call<void>("log", std::string("  ") + key + ": " + value);
+    }
+}
+
+EMSCRIPTEN_BINDINGS(parameters) {
+  class_<Request>("Request")
+        .smart_ptr_constructor("Request", &makeRequest);
+  function("dumpRequest", &smart_ptr_function);
+};
 /**
  * Simple WebAssembly bindings for PJsonEditor
  * Exports PJsonEditor public methods without glue code
@@ -53,40 +111,20 @@ bool updateEditor(const std::string& jsonString) {
 /**
  * Call the editor with a request and return response as JSON string
  */
-std::string callEditor(const std::string& requestString) {
+emscripten::val callEditor(std::shared_ptr<Request> req) {
     if (!g_editor) {
-        return R"({"error": "Editor not initialized"})";
+        return emscripten::val(R"({"error": "Editor not initialized"})");
     }
     
     try {
-        nlohmann::json request_json = nlohmann::json::parse(requestString);
-        
-        // Create request
-        auto req = std::make_shared<Request>();
-        req->method = request_json.value("method", "GET");
-        req->url = request_json.value("url", "");
-        req->body = request_json.value("body", nlohmann::json{});
-        
-        if (request_json.contains("headers") && request_json["headers"].is_object()) {
-            for (auto& [key, value] : request_json["headers"].items()) {
-                if (value.is_string()) {
-                    req->headers[key] = value.get<std::string>();
-                }
-            }
-        }
-        
-        // Call the method
+         // Call the method
         auto resp = g_editor->call(req);
-        
-        // Convert response to JSON string
-        nlohmann::json response_json;
-        response_json["status_code"] = resp->status_code;
-        response_json["headers"] = resp->headers;
-        response_json["body"] = resp->body;
-        
-        return response_json.dump();
+        emscripten::val response_json = emscripten::val::object();
+        response_json.set("status_code", resp->status_code);
+        response_json.set("body", emscripten::val(resp->body.dump()));
+        return response_json;
     } catch (const std::exception& e) {
-        return "{\"error\": \"" + std::string(e.what()) + "\"}";
+        return emscripten::val("error: " + std::string(e.what()));
     }
 }
 

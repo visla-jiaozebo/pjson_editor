@@ -10,6 +10,14 @@
 #include <pjson_editor/pjson_editor.hpp>
 using namespace pjson;
 
+#if EMSCRIPTEN
+const std::string api_request_client::BASE_URL =
+    "";
+#else
+const std::string api_request_client::BASE_URL =
+    "https://api-snapshot.dev01.vislaus.cn";
+#endif
+
 TEST_CASE("Check CWD") {
   char cwd[PATH_MAX];
   if (getcwd(cwd, sizeof(cwd)) != nullptr) {

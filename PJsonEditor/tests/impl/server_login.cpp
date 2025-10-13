@@ -23,7 +23,7 @@ bool api_request_client::login(const std::string &email,
   std::cout << "Login URL: " << login_url << std::endl;
   std::cout << "Login Body: " << login_body << std::endl;
 
-  CurlHttpClient::Response response = http_client.post(login_url, login_body);
+  Response response = http_client.post(login_url, login_body);
 
   std::cout << "Response Status: " << response.status_code << std::endl;
   std::cout << "Response Body: " << response.body << std::endl;
@@ -34,8 +34,8 @@ bool api_request_client::login(const std::string &email,
   assert(response_json.contains("data") && "No data in response");
   auth_token = response_json["data"]["visToken"];
 
-  // Cache token to /tmp/TOKEN_FILE
-  std::ofstream ofs("/tmp/TOKEN_FILE");
+  // Cache token to ../../../demo/TOKEN_FILE
+  std::ofstream ofs("../../../demo/TOKEN_FILE");
   ofs << auth_token;
   ofs.close();
 
@@ -61,7 +61,7 @@ bool api_request_client::create_test_project() {
 
   std::string project_body = project_request.dump();
 
-  CurlHttpClient::Response response =
+  auto response =
       http_client.post(project_url, project_body, auth_token);
 
   std::cout << "Create Project Response Status: " << response.status_code
@@ -88,7 +88,7 @@ void api_request_client::remove_test_project() {
 
   std::string delete_url = BASE_URL + "/v3/project/" + project_uuid;
 
-  CurlHttpClient::Response response =
+  auto response =
       http_client.post(delete_url, "", auth_token);
 
   std::cout << "Delete Project Response Status: " << response.status_code
@@ -100,9 +100,6 @@ void api_request_client::remove_test_project() {
   assert(response_json["code"] == 0 && "Delete project failed");
 }
 
-const std::string api_request_client::BASE_URL =
-    "https://api-snapshot.dev01.vislaus.cn";
-
 // Generic POST method for API testing
 nlohmann::json
 api_request_client::post(const std::string &endpoint,
@@ -112,7 +109,7 @@ api_request_client::post(const std::string &endpoint,
   std::string json_body = request_body.dump();
 
   std::cout << "Executing: " << method << " " << url << std::endl;
-  CurlHttpClient::Response response =
+  auto response =
       http_client.post(url, json_body, method, auth_token);
   json response_json;
   try {
@@ -132,7 +129,7 @@ api_request_client::post(const std::string &endpoint,
 nlohmann::json
 api_request_client::get(const std::string &endpoint) {
   std::string url = BASE_URL + endpoint;
-  CurlHttpClient::Response response = http_client.get(url, auth_token);
+  auto response = http_client.get(url, auth_token);
   json response_json;
   try {
     response_json = json::parse(response.body);

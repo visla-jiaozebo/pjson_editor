@@ -1,3 +1,6 @@
 build_wasm
 build_debug
 example/build_optional
+node_modules
+package-lock.json
+demo/TOKEN_FILE

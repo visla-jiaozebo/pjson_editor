@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PJsonEditor WASM Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .panel {
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 15px;
+        }
+        .controls {
+            grid-column: 1 / -1;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        textarea {
+            width: 100%;
+            height: 200px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        #output {
+            height: 300px;
+            overflow-y: auto;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .status.loading {
+            background-color: #fff3cd;
+            border-color: #ffeaa7;
+            color: #856404;
+        }
+        .status.ready {
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+        .status.error {
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <h1>🚀 PJsonEditor WebAssembly Test</h1>
+    
+    <div id="status" class="status loading">Loading WASM module...</div>
+    
+    <div class="container">
+        <div class="controls panel">
+            <h2>Controls</h2>
+            <button id="createBtn" onclick="createEditor()" disabled>1. Create Editor</button>
+            <button id="updateBtn" onclick="updateWithSample()" disabled>2. Update with Sample Data</button>
+            <button id="callBtn" onclick="testCall()" disabled>3. Test API Call</button>
+            <button id="feedBtn" onclick="testFeedResponse()" disabled>4. Feed Server Response</button>
+            <button id="folderBtn" onclick="setDumpFolder()" disabled>5. Set Dump Folder</button>
+            <br>
+            <button onclick="clearOutput()">Clear Output</button>
+        </div>
+        
+        <div class="panel">
+            <h3>Sample Request JSON</h3>
+            <textarea id="requestJson" placeholder="Edit request JSON here...">{
+  "method": "POST",
+  "url": "/v3/project/test-project-123/scene/add",
+  "body": {
+    "name": "New Scene",
+    "duration": 5000,
+    "sceneType": "DEFAULT"
+  },
+  "headers": {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer test-token"
+  }
+}</textarea>
+        </div>
+        
+        <div class="panel">
+            <h3>Sample Scene Data JSON</h3>
+            <textarea id="sceneDataJson" placeholder="Edit scene data JSON here...">{
+  "scenes": [
+    {
+      "uuid": "scene-1",
+      "name": "Introduction Scene",
+      "duration": 5000,
+      "timeOffsetInProject": 0,
+      "sceneType": "INTRO"
+    },
+    {
+      "uuid": "scene-2", 
+      "name": "Main Content Scene",
+      "duration": 10000,
+      "timeOffsetInProject": 5000,
+      "sceneType": "DEFAULT"
+    }
+  ],
+  "project": {
+    "uuid": "test-project-123",
+    "name": "Sample Project"
+  }
+}</textarea>
+        </div>
+    </div>
+    
+    <div class="panel">
+        <h2>Output</h2>
+        <div id="output"></div>
+    </div>
+
+    <script>
+        var Module = {};
+        let editorCreated = false;
+        
+        // Module loading callback
+        Module['onRuntimeInitialized'] = function() {
+            log('✅ PJsonEditor WASM module loaded successfully!');
+            setStatus('ready', 'WASM module ready - You can now use the controls');
+            enableButton('createBtn');
+            fetch('/v3/project/test-project-123/scene/add')
+                .then(response => log('🌐 Fetched /v3/project/test-project-123/scene/add: ' + response.status))
+                .catch(err => log('❌ Fetch error: ' + err.message));
+            let r = new Module.Request("/v3/project/test-project-123/scene/add");
+            Module.dumpRequest(r)
+
+            r = new Module.Request({ method: "POST", url: "/v3/project/test-project-123/scene/add", body: "{\"key\":\"value\"}" , headers: { "Content-Type": "application/json","token": "test-token" } });
+            Module.dumpRequest(r)
+            Module.createEditor();
+            let resp = Module.callEditor(r);
+            log('📋 Initial API Call Response: ' + JSON.stringify(resp));
+        };
+        
+        Module['onAbort'] = function(what) {
+            log('❌ WASM module aborted: ' + what);
+            setStatus('error', 'Failed to load WASM module: ' + what);
+        };
+        
+        function log(message) {
+            const output = document.getElementById('output');
+            const timestamp = new Date().toLocaleTimeString();
+            output.textContent += `[${timestamp}] ${message}\n`;
+            output.scrollTop = output.scrollHeight;
+        }
+        
+        function setStatus(type, message) {
+            const statusElement = document.getElementById('status');
+            statusElement.className = `status ${type}`;
+            statusElement.textContent = message;
+        }
+        
+        function enableButton(buttonId) {
+            document.getElementById(buttonId).disabled = false;
+        }
+        
+        function enableAllButtons() {
+            ['updateBtn', 'callBtn', 'feedBtn', 'folderBtn'].forEach(id => {
+                enableButton(id);
+            });
+        }
+        
+        function clearOutput() {
+            document.getElementById('output').textContent = '';
+        }
+        
+        function createEditor() {
+            try {
+                log('🔧 Creating PJsonEditor instance...');
+                const success = Module.createEditor();
+                if (success) {
+                    log('✅ Editor created successfully!');
+                    editorCreated = true;
+                    enableAllButtons();
+                    document.getElementById('createBtn').textContent = '✅ Editor Created';
+                    document.getElementById('createBtn').disabled = true;
+                } else {
+                    log('❌ Failed to create editor');
+                }
+            } catch (e) {
+                log('❌ Error creating editor: ' + e.message);
+            }
+        }
+        
+        function updateWithSample() {
+            if (!editorCreated) {
+                log('⚠️ Please create editor first');
+                return;
+            }
+            
+            try {
+                log('📊 Updating editor with sample scene data...');
+                const sampleData = document.getElementById('sceneDataJson').value;
+                
+                // Validate JSON
+                JSON.parse(sampleData);
+                
+                const success = Module.updateEditor(sampleData);
+                if (success) {
+                    log('✅ Editor updated successfully!');
+                } else {
+                    log('❌ Failed to update editor');
+                }
+            } catch (e) {
+                log('❌ Error updating editor: ' + e.message);
+            }
+        }
+        
+        function testCall() {
+            if (!editorCreated) {
+                log('⚠️ Please create editor first');
+                return;
+            }
+            
+            try {
+                log('📞 Making API call to editor...');
+                const requestData = document.getElementById('requestJson').value;
+                
+                // Validate JSON
+                JSON.parse(requestData);
+                
+                const response = Module.callEditor(requestData);
+                log('📋 API Response:');
+                
+                try {
+                    // Pretty print the JSON response
+                    const parsed = JSON.parse(response);
+                    log(JSON.stringify(parsed, null, 2));
+                } catch {
+                    // If not valid JSON, just log as is
+                    log(response);
+                }
+            } catch (e) {
+                log('❌ Error making API call: ' + e.message);
+            }
+        }
+        
+        function testFeedResponse() {
+            if (!editorCreated) {
+                log('⚠️ Please create editor first');
+                return;
+            }
+            
+            try {
+                log('🍽️ Feeding server response to editor...');
+                
+                const mockResponse = {
+                    "status_code": 200,
+                    "headers": {
+                        "Content-Type": "application/json"
+                    },
+                    "body": {
+                        "success": true,
+                        "data": {
+                            "sceneUuid": "scene-123",
+                            "message": "Scene added successfully"
+                        }
+                    }
+                };
+                
+                const serverJson = {
+                    "scenes": [
+                        {
+                            "uuid": "scene-123",
+                            "name": "Server Scene",
+                            "duration": 8000
+                        }
+                    ]
+                };
+                
+                const success = Module.feedServerResponse(
+                    JSON.stringify(mockResponse),
+                    JSON.stringify(serverJson)
+                );
+                
+                if (success) {
+                    log('✅ Server response fed successfully!');
+                } else {
+                    log('❌ Failed to feed server response');
+                }
+            } catch (e) {
+                log('❌ Error feeding server response: ' + e.message);
+            }
+        }
+        
+        function setDumpFolder() {
+            if (!editorCreated) {
+                log('⚠️ Please create editor first');
+                return;
+            }
+            
+            try {
+                log('📁 Setting dump folder...');
+                const path = '/tmp/pjson_wasm_dumps';
+                Module.setDumpFolder(path);
+                log('✅ Dump folder set to: ' + path);
+            } catch (e) {
+                log('❌ Error setting dump folder: ' + e.message);
+            }
+        }
+        
+        // Auto-format JSON textareas
+        document.getElementById('requestJson').addEventListener('blur', function() {
+            try {
+                const parsed = JSON.parse(this.value);
+                this.value = JSON.stringify(parsed, null, 2);
+            } catch (e) {
+                // Invalid JSON, leave as is
+            }
+        });
+        
+        document.getElementById('sceneDataJson').addEventListener('blur', function() {
+            try {
+                const parsed = JSON.parse(this.value);
+                this.value = JSON.stringify(parsed, null, 2);
+            } catch (e) {
+                // Invalid JSON, leave as is
+            }
+        });
+    </script>
+    
+    <!-- Load the generated WASM module -->
+    <script src="pjson_editor_wasm.js"></script>
+</body>
+</html>
