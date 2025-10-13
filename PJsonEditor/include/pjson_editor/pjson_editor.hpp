@@ -27,9 +27,7 @@ using req_ptr = std::shared_ptr<Request>;
 
 class PJsonEditor {
 public:
-  PJsonEditor() = default;
-  // list_resp is the response from /v3/project/{projectUuid}/scene/list
-  PJsonEditor(const nlohmann::json &list_resp);
+  PJsonEditor();
   void update(const nlohmann::json &list_resp);
   resp_ptr call(req_ptr req);
   void feedServerResponse(resp_ptr, const nlohmann::json &);

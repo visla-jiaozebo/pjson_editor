@@ -2185,7 +2185,7 @@ void ExtendedControllerAPI::updateSceneList(const nlohmann::json &resp) {
     if (!resp.contains("data") || !resp["data"].contains("scenes")) {
         return;
     }
-    auto pjson = std::make_shared<ExtendedProjectAndScenesVo>(resp["data"]["scenes"]);
+    auto pjson = std::make_shared<ExtendedProjectAndScenesVo>(resp["data"]);
     dataStore->init(pjson);
 }
 

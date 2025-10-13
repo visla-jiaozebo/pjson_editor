@@ -36,7 +36,8 @@ public:
         apiClient->get("/v3/project/" + PROPJECT_UUID + "/scene/list");
 
     // Initialize the data store with an empty project
-    executor = std::make_shared<pjson::PJsonEditor>(serverResponse);
+    executor = std::make_shared<pjson::PJsonEditor>();
+    executor->update(serverResponse["data"]);
     executor->dump_folder(std::string(cwd) + "/local");
   }
 
