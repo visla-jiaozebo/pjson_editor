@@ -85,7 +85,7 @@ static std::vector<Route> routes = {
 
     {std::regex(R"(/v3/project/[^/]+/scene/add-footage)"), "PUT", nullptr},
     {std::regex(R"(/v3/project/[^/]+/scene/adjust-footage)"), "PUT",
-      createHandler(&ExtendedControllerAPI::adjustFootage)},
+     createHandler(&ExtendedControllerAPI::adjustFootage)},
     {std::regex(R"(/v3/project/[^/]+/scene/cut)"), "POST",
      createHandler(&ExtendedControllerAPI::cutScene)},
     {std::regex(R"(/v3/project/[^/]+/scene/split)"), "PUT",
@@ -106,11 +106,13 @@ static std::vector<Route> routes = {
     {std::regex(R"(/v3/project/[^/]+/add-bgm)"), "POST", nullptr,
      &ExtendedControllerAPI::updateSceneList},
     {std::regex(R"(/v3/project/[^/]+/edit-bgm)"), "PUT",
-     createHandler(&ExtendedControllerAPI::editBgm), &ExtendedControllerAPI::updateSceneList},
+     createHandler(&ExtendedControllerAPI::editBgm),
+     &ExtendedControllerAPI::updateSceneList},
 };
 
-PJsonEditor::PJsonEditor():controller(std::make_unique<ExtendedControllerAPI>()),
-                           dataStore(std::make_shared<ExtendedDataStore>()) {
+PJsonEditor::PJsonEditor()
+    : controller(std::make_unique<ExtendedControllerAPI>()),
+      dataStore(std::make_shared<ExtendedDataStore>()) {
   controller->setDataStore(dataStore);
 }
 

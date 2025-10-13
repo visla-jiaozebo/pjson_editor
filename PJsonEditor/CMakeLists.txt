@@ -1,4 +1,8 @@
+cmake_minimum_required(VERSION 3.20)
+project(PJsonEditor VERSION 1.0.0)
 
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Use FetchContent to get nlohmann_json
 include(FetchContent)
@@ -56,6 +60,28 @@ target_link_libraries(test_scene
 
 # Register the test with CTest
 add_test(NAME test_addscene_doctest COMMAND test_addscene_doctest)
+
+# Emscripten-specific settings
+if(EMSCRIPTEN)
+    message(STATUS "Configuring for Emscripten - Simple WASM build")
+    
+    # Simple WASM executable without glue code
+    add_executable(pjson_editor_wasm
+        src/wasm_bindings_simple.cpp
+    )
+    
+    target_link_libraries(pjson_editor_wasm
+        PRIVATE
+            pjson_editor
+    )
+    
+    # Minimal Emscripten flags for simple WASM build
+    set_target_properties(pjson_editor_wasm PROPERTIES
+        SUFFIX ".js"
+        COMPILE_FLAGS "-std=c++17 -O2 -s WASM=1"
+        LINK_FLAGS "-std=c++17 -O2 -s WASM=1 -s NO_EXIT_RUNTIME=1 -s EXPORTED_RUNTIME_METHODS=['ccall','cwrap'] --bind -s ALLOW_MEMORY_GROWTH=1"
+    )
+endif()
 
 # Install targets
 install(TARGETS pjson_editor

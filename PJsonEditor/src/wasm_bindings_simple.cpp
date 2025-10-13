@@ -5,8 +5,8 @@
 
 #include <string>
 #include <memory>
-#include "pjson_editor/ExtendedAPI.h"
-#include "pjson_editor/ExtendedModels.h"
+#include <pjson_editor/pjson_editor.hpp>
+#include <pjson_editor/ExtendedAPI.h>
 
 #ifdef EMSCRIPTEN
 using namespace emscripten;
@@ -14,46 +14,19 @@ using namespace emscripten;
 using namespace pjson;
 
 /**
- * Simplified WebAssembly bindings for PJsonEditor
- * 
- * This provides basic functionality for demonstration purposes
+ * Simple WebAssembly bindings for PJsonEditor
+ * Exports PJsonEditor public methods without glue code
  */
 
-// Global API instance
-static std::unique_ptr<ExtendedControllerAPI> g_api = nullptr;
-static std::unique_ptr<ExtendedDataStore> g_dataStore = nullptr;
+// Global PJsonEditor instance
+static std::unique_ptr<PJsonEditor> g_editor = nullptr;
 
 /**
- * Initialize the PJsonEditor with sample data
+ * Create a new PJsonEditor instance
  */
-bool initializeSampleProject() {
+bool createEditor() {
     try {
-        g_dataStore = std::make_unique<ExtendedDataStore>();
-        
-        // Create a simple sample project
-        ExtendedProject project;
-        project.uuid = "sample-project-123";
-        project.name = "Sample Project";
-        
-        // Add sample scenes
-        ExtendedProjectScene scene1;
-        scene1.uuid = "scene-1";
-        scene1.name = "Scene 1";
-        scene1.duration = 5000;
-        scene1.timeOffsetInProject = 0;
-        scene1.sceneType = SceneTypeEnum::DEFAULT;
-        
-        ExtendedProjectScene scene2;
-        scene2.uuid = "scene-2";
-        scene2.name = "Scene 2";
-        scene2.duration = 3000;
-        scene2.timeOffsetInProject = 5000;
-        scene2.sceneType = SceneTypeEnum::DEFAULT;
-        
-        project.scenes = {scene1, scene2};
-        g_dataStore->setProject(project);
-        
-        g_api = std::make_unique<ExtendedControllerAPI>(g_dataStore.get());
+        g_editor = std::make_unique<PJsonEditor>();
         return true;
     } catch (...) {
         return false;
@@ -61,81 +34,110 @@ bool initializeSampleProject() {
 }
 
 /**
- * Get current project statistics
+ * Update the editor with JSON data
  */
-std::string getStats() {
-    if (!g_dataStore) {
-        return R"({"error": "Not initialized"})";
+bool updateEditor(const std::string& jsonString) {
+    if (!g_editor) {
+        return false;
     }
     
-    const auto& project = g_dataStore->getProject();
-    
-    // Simple JSON building
-    std::string result = "{";
-    result += "\"projectName\": \"" + project.name + "\",";
-    result += "\"projectUuid\": \"" + project.uuid + "\",";
-    result += "\"totalScenes\": " + std::to_string(project.scenes.size());
-    result += "}";
-    
-    return result;
+    try {
+        nlohmann::json json_data = nlohmann::json::parse(jsonString);
+        g_editor->update(json_data);
+        return true;
+    } catch (...) {
+        return false;
+    }
 }
 
 /**
- * Rename a scene
+ * Call the editor with a request and return response as JSON string
  */
-std::string renameSceneSimple(const std::string& sceneUuid, const std::string& newName) {
-    if (!g_api) {
-        return R"({"success": false, "message": "API not initialized"})";
+std::string callEditor(const std::string& requestString) {
+    if (!g_editor) {
+        return R"({"error": "Editor not initialized"})";
     }
     
-    ExtendedProjectSceneRenameReqBody reqBody;
-    reqBody.sceneUuid = sceneUuid;
-    reqBody.name = newName;
-    
-    ApiResult result = g_api->renameScene(reqBody);
-    
-    std::string response = "{";
-    response += "\"success\": " + std::string(result.success ? "true" : "false") + ",";
-    response += "\"message\": \"" + result.message + "\"";
-    response += "}";
-    
-    return response;
-}
-
-/**
- * Get list of scenes
- */
-std::string getScenes() {
-    if (!g_dataStore) {
-        return R"({"error": "Not initialized"})";
-    }
-    
-    const auto& project = g_dataStore->getProject();
-    
-    std::string result = "{\"scenes\": [";
-    
-    for (size_t i = 0; i < project.scenes.size(); ++i) {
-        if (i > 0) result += ",";
+    try {
+        nlohmann::json request_json = nlohmann::json::parse(requestString);
         
-        const auto& scene = project.scenes[i];
-        result += "{";
-        result += "\"uuid\": \"" + scene.uuid + "\",";
-        result += "\"name\": \"" + scene.name + "\",";
-        result += "\"duration\": " + std::to_string(scene.duration) + ",";
-        result += "\"timeOffset\": " + std::to_string(scene.timeOffsetInProject);
-        result += "}";
+        // Create request
+        auto req = std::make_shared<Request>();
+        req->method = request_json.value("method", "GET");
+        req->url = request_json.value("url", "");
+        req->body = request_json.value("body", nlohmann::json{});
+        
+        if (request_json.contains("headers") && request_json["headers"].is_object()) {
+            for (auto& [key, value] : request_json["headers"].items()) {
+                if (value.is_string()) {
+                    req->headers[key] = value.get<std::string>();
+                }
+            }
+        }
+        
+        // Call the method
+        auto resp = g_editor->call(req);
+        
+        // Convert response to JSON string
+        nlohmann::json response_json;
+        response_json["status_code"] = resp->status_code;
+        response_json["headers"] = resp->headers;
+        response_json["body"] = resp->body;
+        
+        return response_json.dump();
+    } catch (const std::exception& e) {
+        return "{\"error\": \"" + std::string(e.what()) + "\"}";
+    }
+}
+
+/**
+ * Feed server response to the editor
+ */
+bool feedServerResponse(const std::string& responseString, const std::string& serverJsonString) {
+    if (!g_editor) {
+        return false;
     }
     
-    result += "]}";
-    return result;
+    try {
+        nlohmann::json response_json = nlohmann::json::parse(responseString);
+        nlohmann::json server_json = nlohmann::json::parse(serverJsonString);
+        
+        // Create response object
+        auto resp = std::make_shared<Response>();
+        resp->status_code = response_json.value("status_code", 200);
+        resp->body = response_json.value("body", nlohmann::json{});
+        
+        if (response_json.contains("headers") && response_json["headers"].is_object()) {
+            for (auto& [key, value] : response_json["headers"].items()) {
+                if (value.is_string()) {
+                    resp->headers[key] = value.get<std::string>();
+                }
+            }
+        }
+        
+        g_editor->feedServerResponse(resp, server_json);
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+/**
+ * Set dump folder path
+ */
+void setDumpFolder(const std::string& path) {
+    if (g_editor) {
+        g_editor->dump_folder(path);
+    }
 }
 
 #ifdef EMSCRIPTEN
-// Emscripten bindings
-EMSCRIPTEN_BINDINGS(pjson_editor_simple) {
-    function("initializeSampleProject", &initializeSampleProject);
-    function("getStats", &getStats);
-    function("renameSceneSimple", &renameSceneSimple);
-    function("getScenes", &getScenes);
+// Emscripten bindings - Direct function exports without glue code
+EMSCRIPTEN_BINDINGS(PJsonEditorModule) {
+    function("createEditor", &createEditor);
+    function("updateEditor", &updateEditor);
+    function("callEditor", &callEditor);
+    function("feedServerResponse", &feedServerResponse);
+    function("setDumpFolder", &setDumpFolder);
 }
 #endif
