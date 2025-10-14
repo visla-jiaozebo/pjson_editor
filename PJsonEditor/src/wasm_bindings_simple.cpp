@@ -68,7 +68,7 @@ public:
                  JSON.call<emscripten::val>("parse", resp->body.dump()));
       respJS.set("_requestId", resp->_requestId);
     } catch (...) {
-      console.call<void>("warn", "Exception executing call");
+      console.call<void>("warn", std::string("Exception executing call"));
     }
     return respJS;
   }
