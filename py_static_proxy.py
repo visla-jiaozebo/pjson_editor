@@ -181,7 +181,7 @@ class StaticAndProxyHandler(SimpleHTTPRequestHandler):
             else:
                 req_obj = urllib.request.Request(
                     upstream_url,
-                    data=body if method in {'POST','PUT','PATCH'} else None,
+                    data=body if method in {'POST','PUT','PATCH','DELETE'} else None,
                     method=method,
                     headers=forward_headers,
                 )

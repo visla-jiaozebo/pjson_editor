@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,19 +12,23 @@
             margin: 0 auto;
             padding: 20px;
         }
+
         .container {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 20px;
         }
+
         .panel {
             border: 1px solid #ccc;
             border-radius: 5px;
             padding: 15px;
         }
+
         .controls {
             grid-column: 1 / -1;
         }
+
         button {
             background-color: #007bff;
             color: white;
@@ -33,19 +38,23 @@
             border-radius: 4px;
             cursor: pointer;
         }
+
         button:hover {
             background-color: #0056b3;
         }
+
         button:disabled {
             background-color: #6c757d;
             cursor: not-allowed;
         }
+
         textarea {
             width: 100%;
             height: 200px;
             font-family: monospace;
             font-size: 12px;
         }
+
         #output {
             height: 300px;
             overflow-y: auto;
@@ -56,21 +65,25 @@
             font-size: 12px;
             white-space: pre-wrap;
         }
+
         .status {
             margin: 10px 0;
             padding: 10px;
             border-radius: 4px;
         }
+
         .status.loading {
             background-color: #fff3cd;
             border-color: #ffeaa7;
             color: #856404;
         }
+
         .status.ready {
             background-color: #d4edda;
             border-color: #c3e6cb;
             color: #155724;
         }
+
         .status.error {
             background-color: #f8d7da;
             border-color: #f5c6cb;
@@ -78,11 +91,12 @@
         }
     </style>
 </head>
+
 <body>
     <h1>🚀 PJsonEditor WebAssembly Test</h1>
-    
+
     <div id="status" class="status loading">Loading WASM module...</div>
-    
+
     <div class="container">
         <div class="controls panel">
             <h2>Controls</h2>
@@ -94,7 +108,7 @@
             <br>
             <button onclick="clearOutput()">Clear Output</button>
         </div>
-        
+
         <div class="panel">
             <h3>Sample Request JSON</h3>
             <textarea id="requestJson" placeholder="Edit request JSON here...">{
@@ -111,7 +125,7 @@
   }
 }</textarea>
         </div>
-        
+
         <div class="panel">
             <h3>Sample Scene Data JSON</h3>
             <textarea id="sceneDataJson" placeholder="Edit scene data JSON here...">{
@@ -138,7 +152,7 @@
 }</textarea>
         </div>
     </div>
-    
+
     <div class="panel">
         <h2>Output</h2>
         <div id="output"></div>
@@ -147,57 +161,55 @@
     <script>
         var Module = {};
         let editorCreated = false;
-        
+
         // Module loading callback
-        Module['onRuntimeInitialized'] = function() {
+        Module['onRuntimeInitialized'] = async function () {
             log('✅ PJsonEditor WASM module loaded successfully!');
             setStatus('ready', 'WASM module ready - You can now use the controls');
             enableButton('createBtn');
-            fetch('/v3/project/test-project-123/scene/add')
-                .then(response => log('🌐 Fetched /v3/project/test-project-123/scene/add: ' + response.status))
-                .catch(err => log('❌ Fetch error: ' + err.message));
-            let r = new Module.Request("/v3/project/test-project-123/scene/add");
-            Module.dumpRequest(r)
 
-            r = new Module.Request({ method: "POST", url: "/v3/project/test-project-123/scene/add", body: "{\"key\":\"value\"}" , headers: { "Content-Type": "application/json","token": "test-token" } });
-            Module.dumpRequest(r)
-            Module.createEditor();
-            let resp = Module.callEditor(r);
-            log('📋 Initial API Call Response: ' + JSON.stringify(resp));
+            // get token
+            let ab = await (await fetch("/TOKEN_FILE")).arrayBuffer();
+            const token = new TextDecoder("utf-8").decode(ab);
+            log('Token fetched: ' + token.slice(0, 10) + '...');
+            console.warn('Token fetched: ' + token.slice(0, 10) + '...');
+            // tempEditor.setToken(token);
+
+            testPjsonEditor(token);
         };
-        
-        Module['onAbort'] = function(what) {
+
+        Module['onAbort'] = function (what) {
             log('❌ WASM module aborted: ' + what);
             setStatus('error', 'Failed to load WASM module: ' + what);
         };
-        
+
         function log(message) {
             const output = document.getElementById('output');
             const timestamp = new Date().toLocaleTimeString();
             output.textContent += `[${timestamp}] ${message}\n`;
             output.scrollTop = output.scrollHeight;
         }
-        
+
         function setStatus(type, message) {
             const statusElement = document.getElementById('status');
             statusElement.className = `status ${type}`;
             statusElement.textContent = message;
         }
-        
+
         function enableButton(buttonId) {
             document.getElementById(buttonId).disabled = false;
         }
-        
+
         function enableAllButtons() {
             ['updateBtn', 'callBtn', 'feedBtn', 'folderBtn'].forEach(id => {
                 enableButton(id);
             });
         }
-        
+
         function clearOutput() {
             document.getElementById('output').textContent = '';
         }
-        
+
         function createEditor() {
             try {
                 log('🔧 Creating PJsonEditor instance...');
@@ -215,20 +227,20 @@
                 log('❌ Error creating editor: ' + e.message);
             }
         }
-        
+
         function updateWithSample() {
             if (!editorCreated) {
                 log('⚠️ Please create editor first');
                 return;
             }
-            
+
             try {
                 log('📊 Updating editor with sample scene data...');
                 const sampleData = document.getElementById('sceneDataJson').value;
-                
+
                 // Validate JSON
                 JSON.parse(sampleData);
-                
+
                 const success = Module.updateEditor(sampleData);
                 if (success) {
                     log('✅ Editor updated successfully!');
@@ -239,23 +251,23 @@
                 log('❌ Error updating editor: ' + e.message);
             }
         }
-        
+
         function testCall() {
             if (!editorCreated) {
                 log('⚠️ Please create editor first');
                 return;
             }
-            
+
             try {
                 log('📞 Making API call to editor...');
                 const requestData = document.getElementById('requestJson').value;
-                
+
                 // Validate JSON
                 JSON.parse(requestData);
-                
+
                 const response = Module.callEditor(requestData);
                 log('📋 API Response:');
-                
+
                 try {
                     // Pretty print the JSON response
                     const parsed = JSON.parse(response);
@@ -268,16 +280,16 @@
                 log('❌ Error making API call: ' + e.message);
             }
         }
-        
+
         function testFeedResponse() {
             if (!editorCreated) {
                 log('⚠️ Please create editor first');
                 return;
             }
-            
+
             try {
                 log('🍽️ Feeding server response to editor...');
-                
+
                 const mockResponse = {
                     "status_code": 200,
                     "headers": {
@@ -291,7 +303,7 @@
                         }
                     }
                 };
-                
+
                 const serverJson = {
                     "scenes": [
                         {
@@ -301,12 +313,12 @@
                         }
                     ]
                 };
-                
+
                 const success = Module.feedServerResponse(
                     JSON.stringify(mockResponse),
                     JSON.stringify(serverJson)
                 );
-                
+
                 if (success) {
                     log('✅ Server response fed successfully!');
                 } else {
@@ -316,13 +328,13 @@
                 log('❌ Error feeding server response: ' + e.message);
             }
         }
-        
+
         function setDumpFolder() {
             if (!editorCreated) {
                 log('⚠️ Please create editor first');
                 return;
             }
-            
+
             try {
                 log('📁 Setting dump folder...');
                 const path = '/tmp/pjson_wasm_dumps';
@@ -332,9 +344,9 @@
                 log('❌ Error setting dump folder: ' + e.message);
             }
         }
-        
+
         // Auto-format JSON textareas
-        document.getElementById('requestJson').addEventListener('blur', function() {
+        document.getElementById('requestJson').addEventListener('blur', function () {
             try {
                 const parsed = JSON.parse(this.value);
                 this.value = JSON.stringify(parsed, null, 2);
@@ -342,8 +354,8 @@
                 // Invalid JSON, leave as is
             }
         });
-        
-        document.getElementById('sceneDataJson').addEventListener('blur', function() {
+
+        document.getElementById('sceneDataJson').addEventListener('blur', function () {
             try {
                 const parsed = JSON.parse(this.value);
                 this.value = JSON.stringify(parsed, null, 2);
@@ -351,9 +363,155 @@
                 // Invalid JSON, leave as is
             }
         });
+        function CHECK(condition, message) {
+            if ((typeof condition === 'function') && !condition()) {
+                throw new Error(message || "Check failed");
+            }
+            if (condition === false) {
+                throw new Error(message || "Check failed");
+            }
+        }
+        // request: {method, url, body, headers}
+        async function testAnyRequest(editor, token, request) {
+            let localResp = editor.call(request);
+            let r = fetch(request.url, {
+                method: request.method,
+                headers: request.headers,
+                body: JSON.stringify(request.body)
+            });
+
+            if (localResp.status_code !== 200) {
+                let resp = await r;
+                if (resp.ok) {
+                    let respBody = await resp.json();
+                    editor.feedServerResponse(localResp, respBody);
+                    return respBody;
+                } else {
+                    throw new Error("Request failed with status: " + resp.status);
+                }
+            } else {
+                return localResp.body;
+            }
+        }
+
+        async function testPjsonEditor(token) {
+            log('🔍 Running initial tests on PJsonEditor...');
+            // const baseURL = "https://api-snapshot.dev01.vislaus.cn";
+            const baseURL = "";
+            const PROPJECT_UUID = "1358840261077225472";
+            const editor = new Module.PJsonEditorModule();
+            try {
+                let scene_list = await fetch(`${baseURL}/v3/project/${PROPJECT_UUID}/scene/list`, {
+                    headers: {
+                        "Content-Type": "application/json",
+                        "token": token
+                    }
+                });
+                if (!scene_list.ok) {
+                    return log('❌ Failed to fetch scene list: ' + scene_list.status);
+                }
+                editor.update(await scene_list.json());
+                let sceneUuid = ""
+                {
+                    // add scene
+                    let addSceneBody = {
+                        "addPosition": 1,
+                        "duration": 10000
+                    };
+                    let localResp = editor.call({
+                        method: "POST",
+                        url: `/v3/project/${PROPJECT_UUID}/scene/add`,
+                        body: addSceneBody,
+                        headers: {
+                            "Content-Type": "application/json",
+                            "token": token
+                        }
+                    });
+                    // localResp.code == 404;
+                    CHECK(localResp.status_code === 404, "Add scene call failed with:" + JSON.stringify(localResp));
+
+                    let addSceneResponse = await (await fetch(`${baseURL}/v3/project/${PROPJECT_UUID}/scene/add`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "token": token
+                        },
+                        body: JSON.stringify(addSceneBody)
+                    })).json();
+                    sceneUuid = addSceneResponse["data"]["sceneUuid"];
+                    editor.feedServerResponse(localResp, addSceneResponse);
+                    // JSON.parse(localResp);
+                }
+                {
+                    // "scene/rename"
+                    let renameBody = {
+                        "sceneUuid": sceneUuid,
+                        "name": "Renamed Scene" + sceneUuid
+                    };
+
+                    let localResp = editor.call({
+                        method: "PUT",
+                        url: `/v3/project/${PROPJECT_UUID}/scene/rename`,
+                        body: renameBody,
+                        headers: {
+                            "Content-Type": "application/json",
+                            "token": token
+                        }
+                    });
+                    CHECK(localResp.status_code === 200, "Rename scene call failed with:" + localResp.status_code);
+                    let localBody = localResp.body;
+                    CHECK(localBody["data"]["scene"]["name"] === "Renamed Scene" + sceneUuid, "name is not same");
+
+                    let renameResponse = await fetch(`${baseURL}/v3/project/${PROPJECT_UUID}/scene/rename`, {
+                        method: "PUT",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "token": token
+                        },
+                        body: JSON.stringify(renameBody)
+                    });
+                    CHECK(renameResponse.status === 200, "Rename scene call failed with:" + renameResponse.status);
+
+                    let serverBody = await renameResponse.json();
+                    CHECK(localBody["data"]["scene"]["name"] === serverBody["data"]["scene"]["name"], "name is not same");
+                    log('✅ Test passed: Scene renamed successfully: ' + localBody["data"]["scene"]["name"]);
+                }
+                // get json data from response
+
+                // add footage & edit footage
+                {
+
+                }
+
+                // delete scene
+                {
+                    let resp = await testAnyRequest(editor, token, {
+                        method: "DELETE",
+                        url: `/v3/project/${PROPJECT_UUID}/scene/delete`,
+                        body: {
+                            "sceneUuid": sceneUuid
+                        },
+                        headers: {
+                            "Content-Type": "application/json",
+                            "token": token
+                        }
+                    });
+                    CHECK(resp["code"] === 0, "delete error");
+                    log('✅ Test passed: Scene deleted successfully: ' + sceneUuid);
+                }
+            } catch (e) {
+                log('❌ Test failed: ' + e.message);
+                console.error(e);
+            }
+            finally {
+                editor.delete();
+            }
+        }
+
     </script>
-    
+
     <!-- Load the generated WASM module -->
     <script src="pjson_editor_wasm.js"></script>
 </body>
+
 </html>
