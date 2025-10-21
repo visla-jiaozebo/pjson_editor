@@ -58,6 +58,8 @@ if [ $? -eq 0 ]; then
     # Copy any generated files
     find . -name "*.js" -exec cp {} "$DEMO_DIR/" \;
     find . -name "*.wasm" -exec cp {} "$DEMO_DIR/" \;
+    find . -name "*.html" -exec cp {} "$DEMO_DIR/" \;
+    find . -name "*.map" -exec cp {} "$DEMO_DIR/" \;
     
     echo -e "${GREEN}📦 Files copied to demo directory${NC}"
 else

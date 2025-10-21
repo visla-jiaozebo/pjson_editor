@@ -52,7 +52,7 @@ public:
       nlohmann::json scene_list_json = fromVal(scene_list_response["data"]);
       editor->update(scene_list_json);
     } catch (...) {
-      console.call<void>("warn", "Exception updating with scene list");
+      console.call<void>("warn", std::string("Exception updating with scene list"));
       return;
     }
   }
@@ -80,7 +80,7 @@ public:
       nlohmann::json server_json = fromVal(serverResp);
       editor->feedServerResponse(resp, server_json);
     } catch (...) {
-      console.call<void>("warn", "Exception checking server response");
+      console.call<void>("warn", std::string("Exception checking server response"));
       return;
     }
   }

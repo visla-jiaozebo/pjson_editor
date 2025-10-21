@@ -247,9 +247,9 @@ class JSONComparator:
 def main():
     """Main function to run the comparison tool."""
     script_dir = Path(__file__).parent
-    local_dir = script_dir / "build" / "PJsonEditor" / "local"
-    remote_dir = script_dir / "build" / "PJsonEditor" / "remote"
-    
+    local_dir = script_dir / "build" / "PJsonEditor" / "tests" / "local"
+    remote_dir = script_dir / "build" / "PJsonEditor" / "tests" / "remote"
+
     # Check if directories exist
     if not local_dir.exists():
         print(f"❌ Local directory not found: {local_dir}")

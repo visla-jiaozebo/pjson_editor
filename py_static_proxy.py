@@ -90,7 +90,10 @@ class StaticAndProxyHandler(SimpleHTTPRequestHandler):
             self._proxy_request()
         else:
             # Static file
-            super().do_GET()
+            try:
+                super().do_GET()
+            except Exception as e:
+                self.send_error(500, f"Internal Server Error: {e}") 
 
     def do_HEAD(self):  # proxy HEAD or static HEAD
         if self.path.startswith(self.proxy_prefix):
@@ -224,10 +227,28 @@ class StaticAndProxyHandler(SimpleHTTPRequestHandler):
         self.wfile.write(payload)
 
     def _send_cors_headers(self):
+        # CORS + cross-origin isolation headers; needed for SharedArrayBuffer (COOP+COEP)
+        self._add_isolation_headers()
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Credentials', 'true')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization, token, X-Requested-With')
         self.send_header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS,HEAD')
+
+    def _add_isolation_headers(self):
+        # Only add once
+        if getattr(self, '_isolation_added', False):
+            return
+        self.send_header('Cross-Origin-Opener-Policy', 'same-origin')
+        self.send_header('Cross-Origin-Embedder-Policy', 'require-corp')
+        self.send_header('Cross-Origin-Resource-Policy', 'same-origin')
+        self._isolation_added = True
+
+    # Ensure static file responses (which don't call _send_cors_headers) also get isolation headers
+    def end_headers(self):  # noqa: D401
+        # For static content paths (non-proxy) we still want isolation
+        if not hasattr(self, '_proxying'):
+            self._add_isolation_headers()
+        super().end_headers()
 
     # Suppress default logging if not verbose
     def log_message(self, format: str, *args):  # noqa: A003 - override
@@ -270,7 +291,7 @@ def parse_args():
     p.add_argument('--port', type=int, default=int(os.environ.get('PROXY_PORT', '8787')))
     p.add_argument('--addr', default='0.0.0.0')
     p.add_argument('--upstream', default=os.environ.get('PROXY_UPSTREAM', 'https://api-snapshot.dev01.vislaus.cn'))
-    p.add_argument('--static', dest='static_dir', default=os.environ.get('PROXY_STATIC_DIR', 'demo'))
+    p.add_argument('--static', dest='static_dir', default=os.environ.get('PROXY_STATIC_DIR', '.'))
     p.add_argument('--prefix', default=os.environ.get('PROXY_PREFIX', '/v3/'))
     p.add_argument('--strip-prefix', action='store_true', default=truthy(os.environ.get('PROXY_STRIP_PREFIX')))
     p.add_argument('--verbose', action='store_true', default=truthy(os.environ.get('PROXY_VERBOSE')))
