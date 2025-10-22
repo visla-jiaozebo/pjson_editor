@@ -103,7 +103,8 @@ static std::vector<Route> routes = {
     //  scene/scale from docs/API-snapshot.md
     {std::regex(R"(/v3/project/[^/]+/scene/scale)"), "PUT",
      createHandler(&ExtendedControllerAPI::setSceneScale)},
-    {std::regex(R"(/v3/project/[^/]+/add-bgm)"), "POST", nullptr,
+    {std::regex(R"(/v3/project/[^/]+/add-bgm)"), "POST", 
+     createHandler(&ExtendedControllerAPI::addBgm),
      &ExtendedControllerAPI::updateSceneList},
     {std::regex(R"(/v3/project/[^/]+/edit-bgm)"), "PUT",
      createHandler(&ExtendedControllerAPI::editBgm),

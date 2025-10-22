@@ -24,6 +24,55 @@ enum class ProjectTimelineCategoryEnum {
 enum class StatusEnum { ACTIVE, DELETED, DRAFT };
 enum class HighlightTypeEnum { KEYWORDS, SENTENCES };
 enum class HighlightStyleTypeEnum { WORD_HIGHLIGHT, BACKGROUND_HIGHLIGHT };
+
+// Media and Asset Type Enums matching Java
+enum class MediaTypeEnum { 
+    ALL = 0, VIDEO = 1, AUDIO = 2, IMAGE = 3, PDF = 4, PPT = 5 
+};
+
+enum class ProjectAssetTypeEnum {
+    GROUP_RECORDING = 1,
+    SELF_RECORDING = 2,
+    IMPORTED_FROM_LIBRARY = 3,
+    IMPORTED_FROM_SHARING = 4,
+    IMPORTED_FROM_STOCK = 5,
+    UPLOADED_FROM_LOCAL = 6,
+    COMPOSED_BY_SEQUENCE = 7,
+    IMPORTED_FROM_INTEGRATE = 8,
+    IMPORTED_FROM_RECOMMENDATION = 9,
+    GENERATED_BY_AI = 10,
+    QUICK_CAPTURE = 12,
+    EXPORT_FROM_PROJECT_VIDEO = 14,
+    DOWNLOADED_FROM_EXTERNAL = 15,
+    IMPORTED_FROM_PERSONAL_STOCK = 16,
+    SCENE_VOICE_OVER = 17,
+    SCENES_SYNTHETIC_VOICE_OVER = 18,
+    STEP_VIDEO_PICTURES = 19,
+    DOCUMENT_SCREEN_SHOT = 20,
+    DOCUMENT_INLINE = 21,
+    SCENE_NARRATION_VOICE_OVER = 22,
+    AVATAR_PREVIEW = 25
+};
+
+enum class StockLicenseEnum {
+    ROYALTY_FREE,
+    RIGHTS_MANAGED,
+    EDITORIAL_USE,
+    EXTENDED_LICENSE
+};
+
+enum class StockProviderCodeEnum {
+    PEXELS,
+    STORYBLOCKS,
+    GETTYIMAGES,
+    UNSPLASH,
+    PIXABAY
+};
+
+enum class ResolutionEnum {
+    RES360P = 1
+};
+
 enum class EntityTypeEnum { 
     UNKNOWN = -1,
     USER = 0, 
@@ -453,45 +502,131 @@ struct SceneTranscript {
     }
 };
 
+// Provider Info structure matching Java ProviderInfoVo
+struct ProviderInfoVo {
+    ProviderInfoVo() = default;
+    ProviderInfoVo(const nlohmann::json& data) {
+        if (data.contains("license") && data["license"].is_number()) {
+            license = static_cast<StockLicenseEnum>(data["license"].get<int>());
+        }
+        if (data.contains("providerCode") && data["providerCode"].is_number()) {
+            providerCode = static_cast<StockProviderCodeEnum>(data["providerCode"].get<int>());
+        }
+        if (data.contains("providerLink")) {
+            providerLink = data["providerLink"].get<std::string>();
+        }
+    }
+    
+    std::optional<StockLicenseEnum> license;
+    std::optional<StockProviderCodeEnum> providerCode;
+    std::optional<std::string> providerLink;
+    
+    nlohmann::json toJson() const {
+        nlohmann::json result;
+        if (license.has_value()) {
+            result["license"] = static_cast<int>(license.value());
+        }
+        if (providerCode.has_value()) {
+            result["providerCode"] = static_cast<int>(providerCode.value());
+        }
+        if (providerLink.has_value()) {
+            result["providerLink"] = providerLink.value();
+        }
+        return result;
+    }
+};
+
+// Project Asset Videoshot structure matching Java ProjectAssetVideoshotVo
+struct ProjectAssetVideoshotVo {
+    ProjectAssetVideoshotVo() = default;
+    ProjectAssetVideoshotVo(const nlohmann::json& data) {
+        if (data.contains("uuid")) uuid = data["uuid"].get<std::string>();
+        if (data.contains("assetUuid")) assetUuid = data["assetUuid"].get<std::string>();
+        if (data.contains("row")) row = data["row"].get<int>();
+        if (data.contains("column")) column = data["column"].get<int>();
+        if (data.contains("width")) width = data["width"].get<int>();
+        if (data.contains("height")) height = data["height"].get<int>();
+        if (data.contains("interval")) interval = data["interval"].get<int>();
+        if (data.contains("images") && data["images"].is_array()) {
+            images.clear();
+            for (const auto& img : data["images"]) {
+                images.push_back(img.get<std::string>());
+            }
+        }
+        if (data.contains("id")) id = data["id"].get<long>();
+        if (data.contains("assetId")) assetId = data["assetId"].get<long>();
+        if (data.contains("baseImgUrl")) baseImgUrl = data["baseImgUrl"].get<std::string>();
+        if (data.contains("maxIndex")) maxIndex = data["maxIndex"].get<int>();
+    }
+    
+    std::optional<std::string> uuid;
+    std::optional<std::string> assetUuid;
+    std::optional<int> row;
+    std::optional<int> column;
+    std::optional<int> width;
+    std::optional<int> height;
+    std::optional<int> interval;
+    std::vector<std::string> images;
+    
+    // JsonIgnore fields
+    std::optional<long> id;
+    std::optional<long> assetId;
+    std::optional<std::string> baseImgUrl;
+    std::optional<int> maxIndex;
+    
+    nlohmann::json toJson() const {
+        nlohmann::json result;
+        if (uuid.has_value()) result["uuid"] = uuid.value();
+        if (assetUuid.has_value()) result["assetUuid"] = assetUuid.value();
+        if (row.has_value()) result["row"] = row.value();
+        if (column.has_value()) result["column"] = column.value();
+        if (width.has_value()) result["width"] = width.value();
+        if (height.has_value()) result["height"] = height.value();
+        if (interval.has_value()) result["interval"] = interval.value();
+        
+        result["images"] = nlohmann::json::array();
+        for (const auto& image : images) {
+            result["images"].push_back(image);
+        }
+        
+        return result;
+    }
+};
+
 // Asset structures
+// Project Scene Asset structure matching Java ProjectSceneAssetVo
 struct ProjectSceneAsset {
     ProjectSceneAsset() = default;
     ProjectSceneAsset(const nlohmann::json& assetJson) {
-        if (assetJson.contains("assetId")) {
-            assetId = assetJson["assetId"].get<std::string>();
-        }
         if (assetJson.contains("assetUuid")) {
-            uuid = assetJson["assetUuid"].get<std::string>();
-            if (assetId.empty()) { // Use uuid as assetId if assetId not provided
-                assetId = uuid;
-            }
+            assetUuid = assetJson["assetUuid"].get<std::string>();
+        }
+        if (assetJson.contains("sourceEntityUuid")) {
+            sourceEntityUuid = assetJson["sourceEntityUuid"].get<std::string>();
+        }
+        if (assetJson.contains("mediaType") && assetJson["mediaType"].is_number()) {
+            mediaType = static_cast<MediaTypeEnum>(assetJson["mediaType"].get<int>());
+        }
+        if (assetJson.contains("assetType") && assetJson["assetType"].is_number()) {
+            assetType = static_cast<ProjectAssetTypeEnum>(assetJson["assetType"].get<int>());
+        }
+        if (assetJson.contains("title")) {
+            title = assetJson["title"].get<std::string>();
         }
         if (assetJson.contains("assetLink")) {
             assetLink = assetJson["assetLink"].get<std::string>();
         }
+        if (assetJson.contains("playbackLink")) {
+            playbackLink = assetJson["playbackLink"].get<std::string>();
+        }
         if (assetJson.contains("audioLink")) {
             audioLink = assetJson["audioLink"].get<std::string>();
         }
-        if (assetJson.contains("assetType")) {
-            assetType = assetJson["assetType"].get<std::string>();
-        }
-        if (assetJson.contains("coverLink")) {
-            coverLink = assetJson["coverLink"].get<std::string>();
+        if (assetJson.contains("thumbnailLink")) {
+            thumbnailLink = assetJson["thumbnailLink"].get<std::string>();
         }
         if (assetJson.contains("duration")) {
             duration = assetJson["duration"].get<int>();
-        }
-        if (assetJson.contains("mediaId")) {
-            mediaId = assetJson["mediaId"].get<std::string>();
-        }
-        if (assetJson.contains("newMedia")) {
-            newMedia = assetJson["newMedia"].get<bool>();
-        }
-        if (assetJson.contains("voiceId")) {
-            voiceId = assetJson["voiceId"].get<std::string>();
-        }
-        if (assetJson.contains("aiTags")) {
-            aiTags = assetJson["aiTags"];
         }
         if (assetJson.contains("width")) {
             width = assetJson["width"].get<int>();
@@ -499,56 +634,101 @@ struct ProjectSceneAsset {
         if (assetJson.contains("height")) {
             height = assetJson["height"].get<int>();
         }
-        if (assetJson.contains("format")) {
-            format = assetJson["format"].get<std::string>();
+        if (assetJson.contains("previewLink")) {
+            previewLink = assetJson["previewLink"].get<std::string>();
+        }
+        if (assetJson.contains("mattingLink")) {
+            mattingLink = assetJson["mattingLink"].get<std::string>();
+        }
+        if (assetJson.contains("videoshot")) {
+            videoshot = ProjectAssetVideoshotVo(assetJson["videoshot"]);
+        }
+        if (assetJson.contains("providerInfo")) {
+            providerInfo = ProviderInfoVo(assetJson["providerInfo"]);
+        }
+        if (assetJson.contains("audioExist")) {
+            audioExist = assetJson["audioExist"].get<bool>();
+        }
+        if (assetJson.contains("usage")) {
+            usage = assetJson["usage"].get<std::string>();
+        }
+        if (assetJson.contains("premium")) {
+            premium = assetJson["premium"].get<bool>();
+        }
+        if (assetJson.contains("isExpired")) {
+            isExpired = assetJson["isExpired"].get<bool>();
+        }
+        if (assetJson.contains("resolution")) {
+            resolution = assetJson["resolution"].get<int>();
+        }
+        if (assetJson.contains("id")) {
+            id = assetJson["id"].get<long>();
+        }
+        if (assetJson.contains("sourceClipId")) {
+            sourceClipId = assetJson["sourceClipId"].get<long>();
         }
     }
     
-    std::string assetId;
-    std::string uuid;
-    std::string assetLink;
+    // Main fields matching Java ProjectSceneAssetVo
+    std::optional<std::string> assetUuid;
+    std::optional<std::string> sourceEntityUuid;
+    std::optional<MediaTypeEnum> mediaType;
+    std::optional<ProjectAssetTypeEnum> assetType;
+    std::optional<std::string> title;
+    std::optional<std::string> assetLink;
+    std::optional<std::string> playbackLink;    // m3u8 link
     std::optional<std::string> audioLink;
-    std::string assetType;
-    std::optional<std::string> coverLink;
-    int duration{0};
-    std::optional<std::string> mediaId;
-    bool newMedia{false};
-    
-    // Voice/audio specific
-    std::optional<std::string> voiceId;
-    std::optional<json> aiTags;
-    
-    // Media metadata
+    std::optional<std::string> thumbnailLink;
+    std::optional<int> duration;
     std::optional<int> width;
     std::optional<int> height;
-    std::optional<std::string> format;
+    std::optional<std::string> previewLink;
+    std::optional<std::string> mattingLink;     // matting link
+    std::optional<ProjectAssetVideoshotVo> videoshot;
+    std::optional<ProviderInfoVo> providerInfo;
+    bool audioExist = false;
+    std::optional<std::string> usage;           // creative/editorial
+    bool premium = false;
+    bool isExpired = false;
     
-    // 添加 toJson 方法用于序列化
+    // JsonIgnore fields (private in Java but exposed for C++ convenience)
+    std::optional<int> resolution;
+    std::optional<long> id;
+    std::optional<long> sourceClipId;
+    
+    // toJson method for serialization
     nlohmann::json toJson() const {
         nlohmann::json result;
         
-        result["assetId"] = assetId;
-        result["assetUuid"] = uuid;
-        result["assetLink"] = assetLink;
-        result["assetType"] = assetType;
-        result["duration"] = duration;
-        result["newMedia"] = newMedia;
-        
-        // Optional 字段
+        if (assetUuid.has_value()) {
+            result["assetUuid"] = assetUuid.value();
+        }
+        if (sourceEntityUuid.has_value()) {
+            result["sourceEntityUuid"] = sourceEntityUuid.value();
+        }
+        if (mediaType.has_value()) {
+            result["mediaType"] = static_cast<int>(mediaType.value());
+        }
+        if (assetType.has_value()) {
+            result["assetType"] = static_cast<int>(assetType.value());
+        }
+        if (title.has_value()) {
+            result["title"] = title.value();
+        }
+        if (assetLink.has_value()) {
+            result["assetLink"] = assetLink.value();
+        }
+        if (playbackLink.has_value()) {
+            result["playbackLink"] = playbackLink.value();
+        }
         if (audioLink.has_value()) {
             result["audioLink"] = audioLink.value();
         }
-        if (coverLink.has_value()) {
-            result["coverLink"] = coverLink.value();
+        if (thumbnailLink.has_value()) {
+            result["thumbnailLink"] = thumbnailLink.value();
         }
-        if (mediaId.has_value()) {
-            result["mediaId"] = mediaId.value();
-        }
-        if (voiceId.has_value()) {
-            result["voiceId"] = voiceId.value();
-        }
-        if (aiTags.has_value()) {
-            result["aiTags"] = aiTags.value();
+        if (duration.has_value()) {
+            result["duration"] = duration.value();
         }
         if (width.has_value()) {
             result["width"] = width.value();
@@ -556,9 +736,28 @@ struct ProjectSceneAsset {
         if (height.has_value()) {
             result["height"] = height.value();
         }
-        if (format.has_value()) {
-            result["format"] = format.value();
+        if (previewLink.has_value()) {
+            result["previewLink"] = previewLink.value();
         }
+        if (mattingLink.has_value()) {
+            result["mattingLink"] = mattingLink.value();
+        }
+        if (videoshot.has_value()) {
+            result["videoshot"] = videoshot.value().toJson();
+        }
+        if (providerInfo.has_value()) {
+            result["providerInfo"] = providerInfo.value().toJson();
+        }
+        
+        result["audioExist"] = audioExist;
+        if (usage.has_value()) {
+            result["usage"] = usage.value();
+        }
+        result["premium"] = premium;
+        result["isExpired"] = isExpired;
+        
+        // Note: resolution, id, and sourceClipId are JsonIgnore in Java
+        // but can be included here for debugging/internal use if needed
         
         return result;
     }

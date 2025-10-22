@@ -336,7 +336,7 @@ TEST_CASE_FIXTURE(TestSceneContext, "/v3/project/{projectUuid}/bgm") {
           Request{.method = "POST",
                   .url = "/v3/project/" + PROPJECT_UUID + "/add-bgm",
                   .body = requestBody}));
-      CHECK(r->status_code == 404);
+      CHECK(r->status_code == 200);  // BGM API is now implemented
       executor->feedServerResponse(r, serverResponse);
       CHECK(serverResponse["data"]["bgms"].is_array());
       CHECK(serverResponse["data"]["bgms"].size() > 0);

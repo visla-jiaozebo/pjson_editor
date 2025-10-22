@@ -2097,12 +2097,17 @@ ExtendedProjectScene ExtendedControllerAPI::assembleSceneAndTimelines(const Exte
                 // Set audio link from asset map if available
                 auto assetIt = assetMap.find(timeline.assetUuid);
                 if (assetIt != assetMap.end()) {
-                    voiceOver.audioLink = assetIt->second.audioLink.value_or(assetIt->second.assetLink);
+                    voiceOver.audioLink = assetIt->second.audioLink.value_or(assetIt->second.assetLink.value_or(""));
                 }
                 
                 result.voiceOvers.push_back(voiceOver);
                 break;
             }
+            
+            case ProjectTimelineCategoryEnum::BACKGROUND_MUSIC:
+                // Background music is handled separately at project level, not scene level
+                // Skip for scene-level timeline processing
+                break;
         }
     }
     
@@ -2121,6 +2126,10 @@ ExtendedProjectScene ExtendedControllerAPI::assembleSceneAndTimelines(const Exte
 
 // Tier 2 BGM Management API implementations
 ApiResult ExtendedControllerAPI::addBgm(const ProjectBgmAddReqBody& reqBody) {
+    if (!dataStore) {
+        return ApiResult::error(ApiMessage::DATASTORE_NOT_INITIALIZED);
+    }
+    
     ProjectBgm newBgm;  // Using alias, actually BgmV2
     newBgm.timelineUuid = genUuid();
     newBgm.assetUuid = reqBody.assetUuid;
@@ -2141,18 +2150,20 @@ ApiResult ExtendedControllerAPI::addBgm(const ProjectBgmAddReqBody& reqBody) {
         newBgm.chorusEnd = reqBody.chorusEnd.value();
     }
     
-    nlohmann::json patch = nlohmann::json::array();
-    nlohmann::json bgmValue = {
-        {"timelineUuid", newBgm.timelineUuid},
-        {"assetUuid", newBgm.assetUuid.value_or("")},
-        {"assetLink", newBgm.assetLink.value_or("")}
-    };
+    // Initialize mixed settings with defaults
+    if (!newBgm.mixed.has_value()) {
+        newBgm.mixed = nlohmann::json{
+            {"autoDucking", false},
+            {"duckingLevel", 0.5}
+        };
+    }
     
-    if (newBgm.volume.has_value()) bgmValue["volume"] = newBgm.volume.value();
-    if (newBgm.timeOffsetInProject.has_value()) bgmValue["timeOffsetInProject"] = newBgm.timeOffsetInProject.value();
-    if (newBgm.duration.has_value()) bgmValue["duration"] = newBgm.duration.value();
-    if (newBgm.chorusStart.has_value()) bgmValue["chorusStart"] = newBgm.chorusStart.value();
-    if (newBgm.chorusEnd.has_value()) bgmValue["chorusEnd"] = newBgm.chorusEnd.value();
+    // Add the BGM to the project's BGM list
+    auto& project = dataStore->getProject();
+    project.bgms.push_back(newBgm);
+    
+    nlohmann::json patch = nlohmann::json::array();
+    nlohmann::json bgmValue = newBgm.toJson();  // Use the toJson method
     
     // Include scene index info if provided
     if (reqBody.startSceneIndex.has_value()) bgmValue["startSceneIndex"] = reqBody.startSceneIndex.value();
@@ -2181,8 +2192,8 @@ void ExtendedControllerAPI::updateSceneList(const nlohmann::json &resp) {
     if (resp.value("code", -1) != 0) {
         return;
     }
-    assert(resp.contains("data") && resp["data"].contains("scenes"));
-    if (!resp.contains("data") || !resp["data"].contains("scenes")) {
+    assert(resp.contains("data"));
+    if (!resp.contains("data")) {
         return;
     }
     auto pjson = std::make_shared<ExtendedProjectAndScenesVo>(resp["data"]);
