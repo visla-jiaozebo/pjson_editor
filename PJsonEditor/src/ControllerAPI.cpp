@@ -1694,17 +1694,31 @@ ApiResult ExtendedControllerAPI::changeHighlight(const EditSceneHighLightReqBody
     if (!scene->textOnScreen.has_value()) {
         scene->textOnScreen = TextOnScreen();
     }
-    if (!scene->textOnScreen->subtitleText.has_value()) {
-        scene->textOnScreen->subtitleText = SubtitleText();
+    
+    // Convert string highlights to OffsetText objects
+    std::vector<OffsetText> offsetTexts;
+    for (const auto& highlight : reqBody.highLights) {
+        OffsetText offsetText;
+        offsetText.text = highlight;
+        offsetText.startTime = 0; // Default values, may need to be set based on requirements
+        offsetText.endTime = 0;
+        offsetTexts.push_back(offsetText);
     }
     
-    scene->textOnScreen->subtitleText->offsetTexts = reqBody.highLights;
+    scene->textOnScreen->subtitleText.offsetTexts = offsetTexts;
     
     nlohmann::json patch = nlohmann::json::array();
+    
+    // Convert offsetTexts to JSON array for the patch
+    nlohmann::json offsetTextsJson = nlohmann::json::array();
+    for (const auto& offsetText : offsetTexts) {
+        offsetTextsJson.push_back(offsetText.toJson());
+    }
+    
     patch.push_back({
         {"op", "replace"},
         {"path", "/scenes/" + reqBody.sceneUuid + "/textOnScreen/subtitleText/offsetTexts"},
-        {"value", reqBody.highLights}
+        {"value", offsetTextsJson}
     });
     
     return ApiResult::success(patch);
