@@ -429,7 +429,6 @@ ApiResult ExtendedControllerAPI::setSceneTime(const ExtendedProjectSceneSetTimeR
         // For video assets, ensure we don't exceed asset duration
         // For image assets, timeline duration matches scene duration
         mainTimeline.endTime = newTimelineEndTime;
-        mainTimeline.duration = newDuration;
     }
     
     // Step 6: Update footage timelines (bRolls) duration constraints
@@ -437,7 +436,7 @@ ApiResult ExtendedControllerAPI::setSceneTime(const ExtendedProjectSceneSetTimeR
         // Ensure footage timelines don't exceed new scene duration
         if (timeline.endTime > timeline.startTime + newDuration) {
             timeline.endTime = timeline.startTime + newDuration;
-            timeline.duration = timeline.endTime - timeline.startTime;
+            // timeline duration is computed as endTime - startTime (no duration field in Java ProjectTimelineVo)
         }
     }
     
@@ -480,7 +479,7 @@ ApiResult ExtendedControllerAPI::setSceneTime(const ExtendedProjectSceneSetTimeR
         nlohmann::json timelinePatch;
         timelinePatch["op"] = "replace";
         timelinePatch["path"] = "/scenes/" + std::to_string(sceneIndex) + "/aRolls/" + std::to_string(i) + "/duration";
-        timelinePatch["value"] = targetScene.aRolls[i].duration;
+        timelinePatch["value"] = targetScene.aRolls[i].getTimelineDuration();
         patches.push_back(timelinePatch);
     }
     
@@ -617,19 +616,21 @@ ApiResult ExtendedControllerAPI::splitScene(const ExtendedProjectSceneSplitReqBo
             // Timeline belongs to first scene or spans split point
             ExtendedTimeline firstTimeline = timeline;
             
-            if (timeline.timeOffsetInProject + timeline.duration <= originScene->timeOffsetInProject.value_or(0) + splitTime) {
+            int timelineEndTime = timeline.timeOffsetInProject + (timeline.endTime - timeline.startTime);
+            if (timelineEndTime <= originScene->timeOffsetInProject.value_or(0) + splitTime) {
                 // Timeline entirely in first scene
                 firstScene.aRolls.push_back(firstTimeline);
             } else {
                 // Timeline spans split point - truncate for first scene
                 int newDuration = (originScene->timeOffsetInProject.value_or(0) + splitTime) - timeline.timeOffsetInProject;
-                firstTimeline.duration = newDuration;
+                firstTimeline.endTime = firstTimeline.startTime + newDuration;
                 firstScene.aRolls.push_back(firstTimeline);
                 
                 // Create continuation for second scene
                 ExtendedTimeline secondTimeline = timeline;
                 secondTimeline.timeOffsetInProject = secondScene.timeOffsetInProject.value_or(0);
-                secondTimeline.duration = timeline.duration - newDuration;
+                secondTimeline.startTime = timeline.startTime + newDuration;
+                // secondTimeline.endTime remains the same
                 secondScene.aRolls.push_back(secondTimeline);
             }
         } else {
@@ -645,16 +646,18 @@ ApiResult ExtendedControllerAPI::splitScene(const ExtendedProjectSceneSplitReqBo
         if (timeline.timeOffsetInProject < originScene->timeOffsetInProject.value_or(0) + splitTime) {
             ExtendedTimeline firstTimeline = timeline;
             
-            if (timeline.timeOffsetInProject + timeline.duration <= originScene->timeOffsetInProject.value_or(0) + splitTime) {
+            int timelineEndTime = timeline.timeOffsetInProject + (timeline.endTime - timeline.startTime);
+            if (timelineEndTime <= originScene->timeOffsetInProject.value_or(0) + splitTime) {
                 firstScene.bRolls.push_back(firstTimeline);
             } else {
                 int newDuration = (originScene->timeOffsetInProject.value_or(0) + splitTime) - timeline.timeOffsetInProject;
-                firstTimeline.duration = newDuration;
+                firstTimeline.endTime = firstTimeline.startTime + newDuration;
                 firstScene.bRolls.push_back(firstTimeline);
                 
                 ExtendedTimeline secondTimeline = timeline;
                 secondTimeline.timeOffsetInProject = secondScene.timeOffsetInProject.value_or(0);
-                secondTimeline.duration = timeline.duration - newDuration;
+                secondTimeline.startTime = timeline.startTime + newDuration;
+                // secondTimeline.endTime remains the same
                 secondScene.bRolls.push_back(secondTimeline);
             }
         } else {
@@ -958,13 +961,12 @@ ApiResult ExtendedControllerAPI::replaceFootage(const ProjectSceneReplaceFootage
     if (reqBody.oldTimelineUuid.empty()) {
         // Create new timeline for footage (following addFootage logic)
         ExtendedTimeline newTimeline;
-        newTimeline.uuid = genUuid();
+        newTimeline.timelineUuid = genUuid();
         newTimeline.sceneUuid = reqBody.sceneUuid;
         newTimeline.assetUuid = reqBody.newAssetUuid;
         newTimeline.category = ProjectTimelineCategoryEnum::FOOTAGE;
         
-        // Set time offsets
-        newTimeline.timeOffsetInScene = 0;  // Start at beginning of scene
+        // Set time offset
         newTimeline.timeOffsetInProject = scene->timeOffsetInProject.value_or(0);
         
         // Set start time
@@ -974,7 +976,7 @@ ApiResult ExtendedControllerAPI::replaceFootage(const ProjectSceneReplaceFootage
             newTimeline.startTime = 0;
         }
         
-        // Set end time and duration
+        // Set end time 
         if (reqBody.endTime.has_value()) {
             newTimeline.endTime = reqBody.endTime.value();
         } else {
@@ -982,13 +984,8 @@ ApiResult ExtendedControllerAPI::replaceFootage(const ProjectSceneReplaceFootage
             newTimeline.endTime = newTimeline.startTime + scene->duration.value_or(0);
         }
         
-        newTimeline.duration = newTimeline.endTime - newTimeline.startTime;
-        
         // Set default playback attributes
         newTimeline.volume = 1.0;
-        newTimeline.mute = false;
-        newTimeline.speed = 1.0;
-        newTimeline.blendMode = "normal";
         
         // Add to scene's bRolls (footage goes to bRolls)
         scene->bRolls.push_back(newTimeline);
@@ -1007,14 +1004,12 @@ ApiResult ExtendedControllerAPI::replaceFootage(const ProjectSceneReplaceFootage
             {"op", "add"},
             {"path", "/scenes/" + reqBody.sceneUuid + "/bRolls/-"},
             {"value", {
-                {"uuid", newTimeline.uuid},
+                {"uuid", newTimeline.timelineUuid},
                 {"assetUuid", newTimeline.assetUuid},
                 {"category", static_cast<int>(newTimeline.category)},
-                {"timeOffsetInScene", newTimeline.timeOffsetInScene},
                 {"timeOffsetInProject", newTimeline.timeOffsetInProject},
                 {"startTime", newTimeline.startTime},
-                {"endTime", newTimeline.endTime},
-                {"duration", newTimeline.duration}
+                {"endTime", newTimeline.endTime}
             }}
         });
         
@@ -1030,7 +1025,7 @@ ApiResult ExtendedControllerAPI::replaceFootage(const ProjectSceneReplaceFootage
     nlohmann::json patches = nlohmann::json::array();
     
     for (size_t i = 0; i < scene->aRolls.size(); ++i) {
-        if (scene->aRolls[i].uuid == reqBody.oldTimelineUuid) {
+        if (scene->aRolls[i].timelineUuid == reqBody.oldTimelineUuid) {
             // Replace asset UUID
             scene->aRolls[i].assetUuid = reqBody.newAssetUuid;
             
@@ -1040,8 +1035,7 @@ ApiResult ExtendedControllerAPI::replaceFootage(const ProjectSceneReplaceFootage
             }
             if (reqBody.endTime.has_value()) {
                 scene->aRolls[i].endTime = reqBody.endTime.value();
-                // Update duration based on new end time
-                scene->aRolls[i].duration = reqBody.endTime.value() - scene->aRolls[i].startTime;
+                // Duration is computed in Java as endTime - startTime, no field assignment needed
             }
             
             // Generate patch for the replacement
@@ -1059,7 +1053,7 @@ ApiResult ExtendedControllerAPI::replaceFootage(const ProjectSceneReplaceFootage
     // Check bRolls if not found in aRolls
     if (!timelineFound) {
         for (size_t i = 0; i < scene->bRolls.size(); ++i) {
-            if (scene->bRolls[i].uuid == reqBody.oldTimelineUuid) {
+            if (scene->bRolls[i].timelineUuid == reqBody.oldTimelineUuid) {
                 scene->bRolls[i].assetUuid = reqBody.newAssetUuid;
                 
                 if (reqBody.startTime.has_value()) {
@@ -1067,7 +1061,7 @@ ApiResult ExtendedControllerAPI::replaceFootage(const ProjectSceneReplaceFootage
                 }
                 if (reqBody.endTime.has_value()) {
                     scene->bRolls[i].endTime = reqBody.endTime.value();
-                    scene->bRolls[i].duration = reqBody.endTime.value() - scene->bRolls[i].startTime;
+                    // Duration is computed in Java as endTime - startTime, no field assignment needed
                 }
                 
                 timelineFound = true;
@@ -1103,7 +1097,7 @@ ApiResult ExtendedControllerAPI::adjustFootage(const ProjectSceneAdjustFootageRe
     
     // Search in aRolls
     for (auto& timeline : scene->aRolls) {
-        if (timeline.uuid == reqBody.timelineUuid) {
+        if (timeline.timelineUuid == reqBody.timelineUuid) {
             targetTimeline = &timeline;
             break;
         }
@@ -1112,7 +1106,7 @@ ApiResult ExtendedControllerAPI::adjustFootage(const ProjectSceneAdjustFootageRe
     // Search in bRolls if not found
     if (!targetTimeline) {
         for (auto& timeline : scene->bRolls) {
-            if (timeline.uuid == reqBody.timelineUuid) {
+            if (timeline.timelineUuid == reqBody.timelineUuid) {
                 targetTimeline = &timeline;
                 break;
             }
@@ -1131,14 +1125,9 @@ ApiResult ExtendedControllerAPI::adjustFootage(const ProjectSceneAdjustFootageRe
     }
     if (reqBody.endTime.has_value()) {
         targetTimeline->endTime = reqBody.endTime.value();
-        // Recalculate duration
-        targetTimeline->duration = targetTimeline->endTime - targetTimeline->startTime;
+        // Duration is computed in Java as endTime - startTime, no field assignment needed
     }
-    if (reqBody.timeOffsetInScene.has_value()) {
-        targetTimeline->timeOffsetInScene = reqBody.timeOffsetInScene.value();
-        // Recalculate project offset
-        targetTimeline->timeOffsetInProject = scene->timeOffsetInProject.value_or(0) + reqBody.timeOffsetInScene.value();
-    }
+    // timeOffsetInScene field doesn't exist in Java ProjectTimelineVo
     if (reqBody.volume.has_value()) {
         targetTimeline->volume = reqBody.volume.value();
     }
@@ -1339,7 +1328,7 @@ ApiResult ExtendedControllerAPI::addFootage(const ProjectSceneFootageAddReqBody&
     
     // Step 4: Create new timeline for footage (following Java backend: ProjectTimeline.buildDefaultBrollTimeline)
     ExtendedTimeline newBRoll;
-    newBRoll.uuid = genUuid();
+    newBRoll.timelineUuid = genUuid();
     newBRoll.sceneUuid = reqBody.sceneUuid;
     newBRoll.assetUuid = bRoll.entityUuid;
     newBRoll.category = ProjectTimelineCategoryEnum::FOOTAGE;
@@ -1350,7 +1339,7 @@ ApiResult ExtendedControllerAPI::addFootage(const ProjectSceneFootageAddReqBody&
     } else {
         newBRoll.timeOffsetInProject = matchedScene->timeOffsetInProject.value_or(0);
     }
-    newBRoll.timeOffsetInScene = newBRoll.timeOffsetInProject - matchedScene->timeOffsetInProject.value_or(0);
+    // timeOffsetInScene field doesn't exist in Java ProjectTimelineVo, removed assignment
     
     // Step 6: Set start and end times (following Java backend logic)
     newBRoll.startTime = bRoll.startTime.has_value() ? bRoll.startTime.value() : 0;
@@ -1380,7 +1369,7 @@ ApiResult ExtendedControllerAPI::addFootage(const ProjectSceneFootageAddReqBody&
     for (const auto& voiceOver : matchedScene->voiceOvers) {
         ExtendedTimeline voTimeline;
         voTimeline.timeOffsetInProject = voiceOver.timeOffsetInProject;
-        voTimeline.duration = voiceOver.duration;
+        // Following Java logic: no duration field assignment, computed as endTime-startTime
         voiceOverLines.push_back(voTimeline);
     }
     
@@ -1392,12 +1381,11 @@ ApiResult ExtendedControllerAPI::addFootage(const ProjectSceneFootageAddReqBody&
         newBRoll.endTime = std::min(endTime, newBRoll.startTime + matchedScene->duration.value_or(0));
     }
     
-    newBRoll.duration = newBRoll.endTime - newBRoll.startTime;
+    // Following Java logic: no duration field assignment, computed as endTime-startTime
     
     // Step 7: Set default attributes (following Java backend defaults)
     newBRoll.volume = 1.0;
-    newBRoll.mute = false;
-    newBRoll.speed = 1.0;
+    // Following Java logic: no mute/speed fields in ProjectTimelineVo
     
     // Step 8: Add to scene's bRolls (footage goes to bRolls in Java backend)
     matchedScene->bRolls.push_back(newBRoll);
@@ -1416,14 +1404,12 @@ ApiResult ExtendedControllerAPI::addFootage(const ProjectSceneFootageAddReqBody&
         {"op", "add"},
         {"path", "/scenes/" + reqBody.sceneUuid + "/bRolls/-"},
         {"value", {
-            {"uuid", newBRoll.uuid},
+            {"timelineUuid", newBRoll.timelineUuid},  // Use Java field name
             {"assetUuid", newBRoll.assetUuid},
             {"category", static_cast<int>(newBRoll.category)},
-            {"timeOffsetInScene", newBRoll.timeOffsetInScene},
             {"timeOffsetInProject", newBRoll.timeOffsetInProject},
             {"startTime", newBRoll.startTime},
             {"endTime", newBRoll.endTime},
-            {"duration", newBRoll.duration},
             {"volume", newBRoll.volume}
         }}
     });
@@ -1458,7 +1444,7 @@ ApiResult ExtendedControllerAPI::deleteFootage(const ProjectSceneFootageDeleteRe
     // Find and remove footage from scene bRolls
     auto it = std::remove_if(scene->bRolls.begin(), scene->bRolls.end(),
         [&reqBody](const ExtendedTimeline& timeline) {
-            return timeline.uuid == reqBody.timelineUuid;
+            return timeline.timelineUuid == reqBody.timelineUuid;  // Use Java field name
         });
     
     if (it == scene->bRolls.end()) {
@@ -1471,7 +1457,7 @@ ApiResult ExtendedControllerAPI::deleteFootage(const ProjectSceneFootageDeleteRe
     auto& projectTimelines = dataStore->getProject().timelines;
     auto projectIt = std::remove_if(projectTimelines.begin(), projectTimelines.end(),
         [&reqBody](const ExtendedTimeline& timeline) {
-            return timeline.uuid == reqBody.timelineUuid;
+            return timeline.timelineUuid == reqBody.timelineUuid;  // Use Java field name
         });
     projectTimelines.erase(projectIt, projectTimelines.end());
     
@@ -1550,24 +1536,9 @@ ApiResult ExtendedControllerAPI::adjustVoiceOver(const AdjustVoiceOverReqBody& r
     
     nlohmann::json patch = nlohmann::json::array();
     
-    if (reqBody.timeOffsetInScene.has_value()) {
-        voiceOver->timeOffsetInProject = scene->timeOffsetInProject.value_or(0) + reqBody.timeOffsetInScene.value();
-        
-        patch.push_back({
-            {"op", "replace"},
-            {"path", "/scenes/" + reqBody.sceneUuid + "/voiceOvers/" + reqBody.timelineUuid + "/timeOffsetInProject"},
-            {"value", voiceOver->timeOffsetInProject}
-        });
-    }
+    // Following Java backend logic: no timeOffsetInScene handling, use timeOffsetInProject directly
     
-    if (reqBody.duration.has_value()) {
-        voiceOver->duration = reqBody.duration.value();
-        patch.push_back({
-            {"op", "replace"},
-            {"path", "/scenes/" + reqBody.sceneUuid + "/voiceOvers/" + reqBody.timelineUuid + "/duration"},
-            {"value", voiceOver->duration}
-        });
-    }
+    // Following Java backend logic: no duration field updates, duration computed as endTime-startTime
     
     if (reqBody.volume.has_value()) {
         voiceOver->volume = reqBody.volume.value();
@@ -1868,7 +1839,7 @@ ApiResult ExtendedControllerAPI::changeScaleToAll(const UpdateProjectScaleReqBod
         
         // Check aRolls
         for (const auto& timeline : scene.aRolls) {
-            if (timeline.uuid == reqBody.timelineUuid) {
+            if (timeline.timelineUuid == reqBody.timelineUuid) {  // Use Java field name
                 sceneContainsTimeline = true;
                 break;
             }
@@ -1877,7 +1848,7 @@ ApiResult ExtendedControllerAPI::changeScaleToAll(const UpdateProjectScaleReqBod
         // Check bRolls if not found
         if (!sceneContainsTimeline) {
             for (const auto& timeline : scene.bRolls) {
-                if (timeline.uuid == reqBody.timelineUuid) {
+                if (timeline.timelineUuid == reqBody.timelineUuid) {  // Use Java field name
                     sceneContainsTimeline = true;
                     break;
                 }
@@ -1954,7 +1925,7 @@ ApiResult ExtendedControllerAPI::setSceneScale(const PsSceneScaleReqBody& reqBod
         
         // Search in aRolls
         for (size_t i = 0; i < scene->aRolls.size(); ++i) {
-            if (scene->aRolls[i].uuid == scaleReq.timelineUuid) {
+            if (scene->aRolls[i].timelineUuid == scaleReq.timelineUuid) {  // Use Java field name
                 targetTimeline = &scene->aRolls[i];
                 timelinePath = "/scenes/" + reqBody.sceneUuid + "/aRolls/" + std::to_string(i);
                 break;
@@ -1964,7 +1935,7 @@ ApiResult ExtendedControllerAPI::setSceneScale(const PsSceneScaleReqBody& reqBod
         // Search in bRolls if not found in aRolls
         if (!targetTimeline) {
             for (size_t i = 0; i < scene->bRolls.size(); ++i) {
-                if (scene->bRolls[i].uuid == scaleReq.timelineUuid) {
+                if (scene->bRolls[i].timelineUuid == scaleReq.timelineUuid) {  // Use Java field name
                     targetTimeline = &scene->bRolls[i];
                     timelinePath = "/scenes/" + reqBody.sceneUuid + "/bRolls/" + std::to_string(i);
                     break;
@@ -2022,15 +1993,15 @@ ApiResult ExtendedControllerAPI::setSceneScale(const PsSceneScaleReqBody& reqBod
             {"timelineUuid", timelineId}
         };
         
-        // Extract scale data from cropData (our storage workaround)
+        // Extract scale data from cropData (following Java backend logic)
         if (timeline.cropData.has_value()) {
             const auto& cropData = timeline.cropData.value();
             nlohmann::json scaleBo = {
-                {"value", cropData.contains("scale") ? cropData["scale"].get<double>() : 1.0}
+                {"value", timeline.scale.value_or(1.0)}  // Use scale field from Java ProjectTimelineVo
             };
             
-            if (cropData.contains("coordOffset")) {
-                scaleBo["coordOffset"] = cropData["coordOffset"];
+            if (timeline.coordOffset.has_value()) {
+                scaleBo["coordOffset"] = timeline.coordOffset.value();
             }
             
             scaleVo["scale"] = scaleBo;
@@ -2046,12 +2017,12 @@ ApiResult ExtendedControllerAPI::setSceneScale(const PsSceneScaleReqBody& reqBod
     
     // Add aRolls
     for (const auto& timeline : scene->aRolls) {
-        addTimelineScale(timeline, timeline.uuid);
+        addTimelineScale(timeline, timeline.timelineUuid);  // Use Java field name
     }
     
     // Add bRolls
     for (const auto& timeline : scene->bRolls) {
-        addTimelineScale(timeline, timeline.uuid);
+        addTimelineScale(timeline, timeline.timelineUuid);  // Use Java field name
     }
     
     nlohmann::json responseData = resultData; // resultData is already the JSON structure we need
@@ -2097,13 +2068,13 @@ ExtendedProjectScene ExtendedControllerAPI::assembleSceneAndTimelines(const Exte
             case ProjectTimelineCategoryEnum::VOICE_OVER: {
                 // Convert timeline to VoiceOver structure
                 VoiceOver voiceOver;
-                voiceOver.uuid = timeline.uuid;
+                voiceOver.uuid = timeline.timelineUuid;  // Use Java field name
                 voiceOver.assetUuid = timeline.assetUuid;
                 voiceOver.sceneUuid = timeline.sceneUuid;
                 voiceOver.projectUuid = timeline.projectUuid;
                 voiceOver.category = timeline.category;
                 voiceOver.timeOffsetInProject = timeline.timeOffsetInProject;
-                voiceOver.duration = timeline.duration;
+                // Following Java logic: no duration field assignment
                 voiceOver.startTime = timeline.startTime;
                 voiceOver.endTime = timeline.endTime;
                 voiceOver.volume = timeline.volume;
@@ -2850,19 +2821,17 @@ ApiResult ExtendedControllerAPI::addSceneAudio(const AddSceneAudioReqBody& reqBo
     
     // Step 4: Create new timeline for the audio
     ExtendedTimeline newAudioTimeline;
-    newAudioTimeline.uuid = genUuid();
+    newAudioTimeline.timelineUuid = genUuid();  // Use Java field name
     newAudioTimeline.sceneUuid = reqBody.sceneUuid;
     newAudioTimeline.assetUuid = reqBody.entityUuid;
     newAudioTimeline.category = ProjectTimelineCategoryEnum::STORY_AUDIO;
-    newAudioTimeline.timeOffsetInScene = 0;
+    // Following Java logic: no timeOffsetInScene field
     newAudioTimeline.timeOffsetInProject = targetScene.timeOffsetInProject.value_or(0);
     newAudioTimeline.startTime = 0;
-    // For now, use a default duration - in real implementation this would come from asset
-    newAudioTimeline.duration = 5000; // 5 seconds default
-    newAudioTimeline.endTime = newAudioTimeline.duration;
+    // Following Java logic: endTime set, no duration field assignment
+    newAudioTimeline.endTime = 5000; // 5 seconds default
     newAudioTimeline.volume = 1.0;
-    newAudioTimeline.mute = false;
-    newAudioTimeline.speed = 1.0;
+    // Following Java logic: no mute/speed fields
     
     // Step 5: Add timeline to scene (add to aRolls for story audio)
     targetScene.aRolls.push_back(newAudioTimeline);
@@ -2872,9 +2841,9 @@ ApiResult ExtendedControllerAPI::addSceneAudio(const AddSceneAudioReqBody& reqBo
     targetScene.timelines.insert(targetScene.timelines.end(), targetScene.aRolls.begin(), targetScene.aRolls.end());
     targetScene.timelines.insert(targetScene.timelines.end(), targetScene.bRolls.begin(), targetScene.bRolls.end());
     
-    // Step 6: Update scene duration to match audio duration
+    // Step 6: Update scene duration to match audio duration (Java computes as endTime-startTime)
     int oldDuration = targetScene.duration.value_or(0);
-    targetScene.duration = newAudioTimeline.duration;
+    targetScene.duration = newAudioTimeline.endTime - newAudioTimeline.startTime;  // Following Java logic
     int durationChange = targetScene.duration.value_or(0) - oldDuration;
     
     // Step 7: Update subsequent scenes' time offsets
@@ -2910,18 +2879,15 @@ ApiResult ExtendedControllerAPI::addSceneAudio(const AddSceneAudioReqBody& reqBo
         {"op", "add"},
         {"path", "/scenes/" + std::to_string(sceneIndex) + "/aRolls/-"},
         {"value", {
-            {"uuid", newAudioTimeline.uuid},
+            {"timelineUuid", newAudioTimeline.timelineUuid},  // Use Java field name
             {"sceneUuid", newAudioTimeline.sceneUuid},
             {"assetUuid", newAudioTimeline.assetUuid},
             {"category", "STORY_AUDIO"},
-            {"timeOffsetInScene", newAudioTimeline.timeOffsetInScene},
             {"timeOffsetInProject", newAudioTimeline.timeOffsetInProject},
-            {"duration", newAudioTimeline.duration},
             {"startTime", newAudioTimeline.startTime},
             {"endTime", newAudioTimeline.endTime},
-            {"volume", newAudioTimeline.volume},
-            {"mute", newAudioTimeline.mute},
-            {"speed", newAudioTimeline.speed}
+            {"volume", newAudioTimeline.volume}
+            // Following Java logic: no timeOffsetInScene, duration, mute, speed fields
         }}
     });
     

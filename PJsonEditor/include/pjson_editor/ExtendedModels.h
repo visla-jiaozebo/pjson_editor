@@ -26,6 +26,25 @@ enum class StatusEnum { ACTIVE, DELETED, DRAFT };
 enum class HighlightTypeEnum { KEYWORDS, SENTENCES };
 enum class HighlightStyleTypeEnum { WORD_HIGHLIGHT, BACKGROUND_HIGHLIGHT };
 
+// Asset processing status enum matching Java AssetProcessStatusEnum
+enum class AssetProcessStatusEnum {
+    INIT = 0,
+    DOWNLOADING = 1,
+    UPLOADING = 2,
+    PROCESSING = 3,
+    PUBLISHING = 6,
+    COMPLETED = 9,
+    FAILED = 12
+};
+
+// Process action status enum
+enum class ProcessActionStatusEnum {
+    SUCCESS,
+    FAILED,
+    PROCESSING,
+    PENDING
+};
+
 // Text positioning and alignment enums matching Java
 enum class TextOnScreenPositionTypeEnum {
     TOP_LEFT = 11,
@@ -136,15 +155,406 @@ enum class EntityTypeEnum {
     TEAMSPACE = 51 
 };
 
-// Core timeline with full backend fields
+// Process result structures matching Java ProcessResultVo
+struct ActionResult {
+    ProcessActionStatusEnum status;
+    std::optional<std::string> message;
+    
+    ActionResult() = default;
+    ActionResult(const nlohmann::json& data) {
+        if (data.contains("status") && !data["status"].is_null()) {
+            std::string statusStr = data["status"].get<std::string>();
+            if (statusStr == "SUCCESS") status = ProcessActionStatusEnum::SUCCESS;
+            else if (statusStr == "FAILED") status = ProcessActionStatusEnum::FAILED;
+            else if (statusStr == "PROCESSING") status = ProcessActionStatusEnum::PROCESSING;
+            else status = ProcessActionStatusEnum::PENDING;
+        }
+        if (data.contains("message") && !data["message"].is_null()) {
+            message = data["message"].get<std::string>();
+        }
+    }
+    
+    nlohmann::json toJson() const {
+        nlohmann::json result;
+        switch (status) {
+            case ProcessActionStatusEnum::SUCCESS: result["status"] = "SUCCESS"; break;
+            case ProcessActionStatusEnum::FAILED: result["status"] = "FAILED"; break;
+            case ProcessActionStatusEnum::PROCESSING: result["status"] = "PROCESSING"; break;
+            case ProcessActionStatusEnum::PENDING: result["status"] = "PENDING"; break;
+        }
+        if (message.has_value()) {
+            result["message"] = message.value();
+        }
+        return result;
+    }
+};
+
+struct AssetTranscript {
+    ProcessActionStatusEnum status;
+    std::optional<std::string> message;
+    
+    AssetTranscript() = default;
+    AssetTranscript(const nlohmann::json& data) {
+        if (data.contains("status") && !data["status"].is_null()) {
+            std::string statusStr = data["status"].get<std::string>();
+            if (statusStr == "SUCCESS") status = ProcessActionStatusEnum::SUCCESS;
+            else if (statusStr == "FAILED") status = ProcessActionStatusEnum::FAILED;
+            else if (statusStr == "PROCESSING") status = ProcessActionStatusEnum::PROCESSING;
+            else status = ProcessActionStatusEnum::PENDING;
+        }
+        if (data.contains("message") && !data["message"].is_null()) {
+            message = data["message"].get<std::string>();
+        }
+    }
+    
+    nlohmann::json toJson() const {
+        nlohmann::json result;
+        switch (status) {
+            case ProcessActionStatusEnum::SUCCESS: result["status"] = "SUCCESS"; break;
+            case ProcessActionStatusEnum::FAILED: result["status"] = "FAILED"; break;
+            case ProcessActionStatusEnum::PROCESSING: result["status"] = "PROCESSING"; break;
+            case ProcessActionStatusEnum::PENDING: result["status"] = "PENDING"; break;
+        }
+        if (message.has_value()) {
+            result["message"] = message.value();
+        }
+        return result;
+    }
+};
+
+struct ProcessResultVo {
+    std::optional<AssetTranscript> transcript;
+    std::optional<ActionResult> metadata;
+    std::optional<ActionResult> thumbnail;
+    std::optional<ActionResult> scale;
+    std::optional<ActionResult> playback;
+    std::optional<ActionResult> standardization;
+    std::optional<ActionResult> separate;
+    std::optional<ActionResult> noiseLvlControl;
+    
+    ProcessResultVo() = default;
+    ProcessResultVo(const nlohmann::json& data) {
+        if (data.contains("transcript") && !data["transcript"].is_null()) {
+            transcript = AssetTranscript(data["transcript"]);
+        }
+        if (data.contains("metadata") && !data["metadata"].is_null()) {
+            metadata = ActionResult(data["metadata"]);
+        }
+        if (data.contains("thumbnail") && !data["thumbnail"].is_null()) {
+            thumbnail = ActionResult(data["thumbnail"]);
+        }
+        if (data.contains("scale") && !data["scale"].is_null()) {
+            scale = ActionResult(data["scale"]);
+        }
+        if (data.contains("playback") && !data["playback"].is_null()) {
+            playback = ActionResult(data["playback"]);
+        }
+        if (data.contains("standardization") && !data["standardization"].is_null()) {
+            standardization = ActionResult(data["standardization"]);
+        }
+        if (data.contains("separate") && !data["separate"].is_null()) {
+            separate = ActionResult(data["separate"]);
+        }
+        if (data.contains("noiseLvlControl") && !data["noiseLvlControl"].is_null()) {
+            noiseLvlControl = ActionResult(data["noiseLvlControl"]);
+        }
+    }
+    
+    nlohmann::json toJson() const {
+        nlohmann::json result;
+        if (transcript.has_value()) {
+            result["transcript"] = transcript.value().toJson();
+        }
+        if (metadata.has_value()) {
+            result["metadata"] = metadata.value().toJson();
+        }
+        if (thumbnail.has_value()) {
+            result["thumbnail"] = thumbnail.value().toJson();
+        }
+        if (scale.has_value()) {
+            result["scale"] = scale.value().toJson();
+        }
+        if (playback.has_value()) {
+            result["playback"] = playback.value().toJson();
+        }
+        if (standardization.has_value()) {
+            result["standardization"] = standardization.value().toJson();
+        }
+        if (separate.has_value()) {
+            result["separate"] = separate.value().toJson();
+        }
+        if (noiseLvlControl.has_value()) {
+            result["noiseLvlControl"] = noiseLvlControl.value().toJson();
+        }
+        return result;
+    }
+};
+
+// Crop config structures matching Java CropConfigBo
+struct CropBounds {
+    int timeOffset;
+    double top;
+    double left;
+    double bottom;
+    double right;
+    int rotation;
+    
+    CropBounds() = default;
+    CropBounds(const nlohmann::json& data) {
+        if (data.contains("timeOffset")) timeOffset = data["timeOffset"];
+        if (data.contains("top")) top = data["top"];
+        if (data.contains("left")) left = data["left"];
+        if (data.contains("bottom")) bottom = data["bottom"];
+        if (data.contains("right")) right = data["right"];
+        if (data.contains("rotation")) rotation = data["rotation"];
+    }
+    
+    nlohmann::json toJson() const {
+        nlohmann::json result;
+        result["timeOffset"] = timeOffset;
+        result["top"] = top;
+        result["left"] = left;
+        result["bottom"] = bottom;
+        result["right"] = right;
+        result["rotation"] = rotation;
+        return result;
+    }
+};
+
+struct AIKenBurns {
+    float centerX;
+    float centerY;
+    float scale;
+    int rotation;
+    
+    AIKenBurns() = default;
+    AIKenBurns(const nlohmann::json& data) {
+        if (data.contains("centerX")) centerX = data["centerX"];
+        if (data.contains("centerY")) centerY = data["centerY"];
+        if (data.contains("scale")) scale = data["scale"];
+        if (data.contains("rotation")) rotation = data["rotation"];
+    }
+    
+    nlohmann::json toJson() const {
+        nlohmann::json result;
+        result["centerX"] = centerX;
+        result["centerY"] = centerY;
+        result["scale"] = scale;
+        result["rotation"] = rotation;
+        return result;
+    }
+};
+
+// Since we need these enums, let me add them (simplified for now)
+enum class CropTypeEnum { MANUAL, AUTOMATIC };
+enum class ProjectVideoFormatEnum { FORMAT_16_9, FORMAT_9_16, FORMAT_1_1 };
+enum class CropInterpolatorTypeEnum { LINEAR, EASE_IN, EASE_OUT };
+enum class AnimationTypeEnum { FADE, SLIDE, ZOOM };
+
+struct CropData {
+    CropInterpolatorTypeEnum interpolator;
+    std::vector<CropBounds> bounds;
+    std::vector<AIKenBurns> aiKenBurns;
+    
+    CropData() = default;
+    CropData(const nlohmann::json& data) {
+        if (data.contains("interpolator")) {
+            // Parse interpolator enum
+            std::string interpStr = data["interpolator"].get<std::string>();
+            if (interpStr == "LINEAR") interpolator = CropInterpolatorTypeEnum::LINEAR;
+            else if (interpStr == "EASE_IN") interpolator = CropInterpolatorTypeEnum::EASE_IN;
+            else interpolator = CropInterpolatorTypeEnum::LINEAR;
+        }
+        if (data.contains("bounds") && data["bounds"].is_array()) {
+            for (const auto& item : data["bounds"]) {
+                bounds.emplace_back(CropBounds(item));
+            }
+        }
+        if (data.contains("aiKenBurns") && data["aiKenBurns"].is_array()) {
+            for (const auto& item : data["aiKenBurns"]) {
+                aiKenBurns.emplace_back(AIKenBurns(item));
+            }
+        }
+    }
+    
+    nlohmann::json toJson() const {
+        nlohmann::json result;
+        switch (interpolator) {
+            case CropInterpolatorTypeEnum::LINEAR: result["interpolator"] = "LINEAR"; break;
+            case CropInterpolatorTypeEnum::EASE_IN: result["interpolator"] = "EASE_IN"; break;
+            case CropInterpolatorTypeEnum::EASE_OUT: result["interpolator"] = "EASE_OUT"; break;
+        }
+        result["bounds"] = nlohmann::json::array();
+        for (const auto& bound : bounds) {
+            result["bounds"].push_back(bound.toJson());
+        }
+        result["aiKenBurns"] = nlohmann::json::array();
+        for (const auto& kb : aiKenBurns) {
+            result["aiKenBurns"].push_back(kb.toJson());
+        }
+        return result;
+    }
+};
+
+struct CropConfigBo {
+    CropTypeEnum type;
+    ProjectVideoFormatEnum targetRatio;
+    CropData data;
+    
+    CropConfigBo() = default;
+    CropConfigBo(const nlohmann::json& configData) {
+        if (configData.contains("type")) {
+            std::string typeStr = configData["type"].get<std::string>();
+            type = (typeStr == "MANUAL") ? CropTypeEnum::MANUAL : CropTypeEnum::AUTOMATIC;
+        }
+        if (configData.contains("targetRatio")) {
+            std::string ratioStr = configData["targetRatio"].get<std::string>();
+            if (ratioStr == "FORMAT_16_9") targetRatio = ProjectVideoFormatEnum::FORMAT_16_9;
+            else if (ratioStr == "FORMAT_9_16") targetRatio = ProjectVideoFormatEnum::FORMAT_9_16;
+            else targetRatio = ProjectVideoFormatEnum::FORMAT_1_1;
+        }
+        if (configData.contains("data")) {
+            data = CropData(configData["data"]);
+        }
+    }
+    
+    nlohmann::json toJson() const {
+        nlohmann::json result;
+        switch (type) {
+            case CropTypeEnum::MANUAL: result["type"] = "MANUAL"; break;
+            case CropTypeEnum::AUTOMATIC: result["type"] = "AUTOMATIC"; break;
+        }
+        switch (targetRatio) {
+            case ProjectVideoFormatEnum::FORMAT_16_9: result["targetRatio"] = "FORMAT_16_9"; break;
+            case ProjectVideoFormatEnum::FORMAT_9_16: result["targetRatio"] = "FORMAT_9_16"; break;
+            case ProjectVideoFormatEnum::FORMAT_1_1: result["targetRatio"] = "FORMAT_1_1"; break;
+        }
+        result["data"] = data.toJson();
+        return result;
+    }
+};
+
+struct KenburnsBounds {
+    int timeOffset;
+    double top;
+    double left;
+    double bottom;
+    double right;
+    int rotation;
+    
+    KenburnsBounds() = default;
+    KenburnsBounds(const nlohmann::json& data) {
+        if (data.contains("timeOffset")) timeOffset = data["timeOffset"];
+        if (data.contains("top")) top = data["top"];
+        if (data.contains("left")) left = data["left"];
+        if (data.contains("bottom")) bottom = data["bottom"];
+        if (data.contains("right")) right = data["right"];
+        if (data.contains("rotation")) rotation = data["rotation"];
+    }
+    
+    nlohmann::json toJson() const {
+        nlohmann::json result;
+        result["timeOffset"] = timeOffset;
+        result["top"] = top;
+        result["left"] = left;
+        result["bottom"] = bottom;
+        result["right"] = right;
+        result["rotation"] = rotation;
+        return result;
+    }
+};
+
+struct KenburnsData {
+    AnimationTypeEnum animationType;
+    ProjectVideoFormatEnum targetRatio;
+    CropInterpolatorTypeEnum interpolator;
+    std::vector<KenburnsBounds> bounds;
+    
+    KenburnsData() = default;
+    KenburnsData(const nlohmann::json& data) {
+        if (data.contains("animationType")) {
+            std::string typeStr = data["animationType"].get<std::string>();
+            if (typeStr == "FADE") animationType = AnimationTypeEnum::FADE;
+            else if (typeStr == "SLIDE") animationType = AnimationTypeEnum::SLIDE;
+            else animationType = AnimationTypeEnum::ZOOM;
+        }
+        if (data.contains("targetRatio")) {
+            std::string ratioStr = data["targetRatio"].get<std::string>();
+            if (ratioStr == "FORMAT_16_9") targetRatio = ProjectVideoFormatEnum::FORMAT_16_9;
+            else if (ratioStr == "FORMAT_9_16") targetRatio = ProjectVideoFormatEnum::FORMAT_9_16;
+            else targetRatio = ProjectVideoFormatEnum::FORMAT_1_1;
+        }
+        if (data.contains("interpolator")) {
+            std::string interpStr = data["interpolator"].get<std::string>();
+            if (interpStr == "LINEAR") interpolator = CropInterpolatorTypeEnum::LINEAR;
+            else if (interpStr == "EASE_IN") interpolator = CropInterpolatorTypeEnum::EASE_IN;
+            else interpolator = CropInterpolatorTypeEnum::LINEAR;
+        }
+        if (data.contains("bounds") && data["bounds"].is_array()) {
+            for (const auto& item : data["bounds"]) {
+                bounds.emplace_back(KenburnsBounds(item));
+            }
+        }
+    }
+    
+    nlohmann::json toJson() const {
+        nlohmann::json result;
+        switch (animationType) {
+            case AnimationTypeEnum::FADE: result["animationType"] = "FADE"; break;
+            case AnimationTypeEnum::SLIDE: result["animationType"] = "SLIDE"; break;
+            case AnimationTypeEnum::ZOOM: result["animationType"] = "ZOOM"; break;
+        }
+        switch (targetRatio) {
+            case ProjectVideoFormatEnum::FORMAT_16_9: result["targetRatio"] = "FORMAT_16_9"; break;
+            case ProjectVideoFormatEnum::FORMAT_9_16: result["targetRatio"] = "FORMAT_9_16"; break;
+            case ProjectVideoFormatEnum::FORMAT_1_1: result["targetRatio"] = "FORMAT_1_1"; break;
+        }
+        switch (interpolator) {
+            case CropInterpolatorTypeEnum::LINEAR: result["interpolator"] = "LINEAR"; break;
+            case CropInterpolatorTypeEnum::EASE_IN: result["interpolator"] = "EASE_IN"; break;
+            case CropInterpolatorTypeEnum::EASE_OUT: result["interpolator"] = "EASE_OUT"; break;
+        }
+        result["bounds"] = nlohmann::json::array();
+        for (const auto& bound : bounds) {
+            result["bounds"].push_back(bound.toJson());
+        }
+        return result;
+    }
+};
+
+struct KenburnsConfigBo {
+    KenburnsData data;
+    std::vector<AIKenBurns> aiKenBurns;
+    
+    KenburnsConfigBo() = default;
+    KenburnsConfigBo(const nlohmann::json& configData) {
+        if (configData.contains("data")) {
+            data = KenburnsData(configData["data"]);
+        }
+        if (configData.contains("aiKenBurns") && configData["aiKenBurns"].is_array()) {
+            for (const auto& item : configData["aiKenBurns"]) {
+                aiKenBurns.emplace_back(AIKenBurns(item));
+            }
+        }
+    }
+    
+    nlohmann::json toJson() const {
+        nlohmann::json result;
+        result["data"] = data.toJson();
+        result["aiKenBurns"] = nlohmann::json::array();
+        for (const auto& kb : aiKenBurns) {
+            result["aiKenBurns"].push_back(kb.toJson());
+        }
+        return result;
+    }
+};
+
+// Core timeline structure matching Java ProjectTimelineVo
 struct ExtendedTimeline {
     ExtendedTimeline() = default;
     ExtendedTimeline(const nlohmann::json& timelineJson) {
         if (timelineJson.contains("timelineUuid")) {
-            uuid = timelineJson["timelineUuid"].get<std::string>();
-        }
-        if (timelineJson.contains("sceneUuid")) {
-            sceneUuid = timelineJson["sceneUuid"].get<std::string>();
+            timelineUuid = timelineJson["timelineUuid"].get<std::string>();
         }
         if (timelineJson.contains("projectUuid")) {
             projectUuid = timelineJson["projectUuid"].get<std::string>();
@@ -152,25 +562,28 @@ struct ExtendedTimeline {
         if (timelineJson.contains("assetUuid")) {
             assetUuid = timelineJson["assetUuid"].get<std::string>();
         }
+        if (timelineJson.contains("sceneUuid")) {
+            sceneUuid = timelineJson["sceneUuid"].get<std::string>();
+        }
         if (timelineJson.contains("category")) {
-            // Parse category enum - would need proper mapping
+            // Parse category enum
             std::string categoryStr = timelineJson["category"].get<std::string>();
             if (categoryStr == "MAIN_STORY") category = ProjectTimelineCategoryEnum::MAIN_STORY;
+            else if (categoryStr == "INTRO") category = ProjectTimelineCategoryEnum::INTRO;
+            else if (categoryStr == "OUTRO") category = ProjectTimelineCategoryEnum::OUTRO;
             else if (categoryStr == "FOOTAGE") category = ProjectTimelineCategoryEnum::FOOTAGE;
+            else if (categoryStr == "RECORD_VOICE_OVER") category = ProjectTimelineCategoryEnum::RECORD_VOICE_OVER;
+            else if (categoryStr == "SYNTHETIC_VOICE_OVER") category = ProjectTimelineCategoryEnum::SYNTHETIC_VOICE_OVER;
+            else if (categoryStr == "STORY_AUDIO") category = ProjectTimelineCategoryEnum::STORY_AUDIO;
+            else if (categoryStr == "NARRATION_VOICE_OVER") category = ProjectTimelineCategoryEnum::NARRATION_VOICE_OVER;
+            else if (categoryStr == "AROLL") category = ProjectTimelineCategoryEnum::AROLL;
+            else if (categoryStr == "BROLL") category = ProjectTimelineCategoryEnum::BROLL;
             else if (categoryStr == "VOICE_OVER") category = ProjectTimelineCategoryEnum::VOICE_OVER;
             else if (categoryStr == "BACKGROUND_MUSIC") category = ProjectTimelineCategoryEnum::BACKGROUND_MUSIC;
             else category = ProjectTimelineCategoryEnum::MAIN_STORY; // default
         }
-        if (timelineJson.contains("timeOffsetInScene")) {
-            timeOffsetInScene = timelineJson["timeOffsetInScene"].get<int>();
-        }
         if (timelineJson.contains("timeOffsetInProject")) {
             timeOffsetInProject = timelineJson["timeOffsetInProject"].get<int>();
-        }
-        if (timelineJson.contains("duration") || timelineJson.contains("timelineDuration")) {
-            duration = timelineJson.contains("duration") ? 
-                       timelineJson["duration"].get<int>() : 
-                       timelineJson["timelineDuration"].get<int>();
         }
         if (timelineJson.contains("startTime")) {
             startTime = timelineJson["startTime"].get<int>();
@@ -181,62 +594,145 @@ struct ExtendedTimeline {
         if (timelineJson.contains("volume")) {
             volume = timelineJson["volume"].get<double>();
         }
-        if (timelineJson.contains("mute")) {
-            mute = timelineJson["mute"].get<bool>();
+        if (timelineJson.contains("scale")) {
+            scale = timelineJson["scale"].get<double>();
         }
-        if (timelineJson.contains("speed")) {
-            speed = timelineJson["speed"].get<double>();
+        if (timelineJson.contains("zIndex")) {
+            zIndex = timelineJson["zIndex"].get<int>();
         }
-        if (timelineJson.contains("blendMode")) {
-            blendMode = timelineJson["blendMode"].get<std::string>();
+        if (timelineJson.contains("visible")) {
+            visible = timelineJson["visible"].get<bool>();
+        }
+        if (timelineJson.contains("coordOffset") && timelineJson["coordOffset"].is_array()) {
+            auto coordArray = timelineJson["coordOffset"];
+            if (coordArray.size() >= 2) {
+                std::array<double, 2> coords;
+                coords[0] = coordArray[0].get<double>();
+                coords[1] = coordArray[1].get<double>();
+                coordOffset = coords;
+            }
+        }
+        if (timelineJson.contains("audioExist")) {
+            audioExist = timelineJson["audioExist"].get<bool>();
+        }
+        if (timelineJson.contains("timelineDuration")) {
+            timelineDuration = timelineJson["timelineDuration"].get<int>();
         }
         if (timelineJson.contains("cropData")) {
-            cropData = timelineJson["cropData"];
+            cropData = CropConfigBo(timelineJson["cropData"]);
         }
         if (timelineJson.contains("kenburnsData")) {
-            kenburnsData = timelineJson["kenburnsData"];
+            kenburnsData = KenburnsConfigBo(timelineJson["kenburnsData"]);
         }
+        if (timelineJson.contains("processStatus")) {
+            std::string statusStr = timelineJson["processStatus"].get<std::string>();
+            if (statusStr == "INIT") processStatus = AssetProcessStatusEnum::INIT;
+            else if (statusStr == "DOWNLOADING") processStatus = AssetProcessStatusEnum::DOWNLOADING;
+            else if (statusStr == "UPLOADING") processStatus = AssetProcessStatusEnum::UPLOADING;
+            else if (statusStr == "PROCESSING") processStatus = AssetProcessStatusEnum::PROCESSING;
+            else if (statusStr == "PUBLISHING") processStatus = AssetProcessStatusEnum::PUBLISHING;
+            else if (statusStr == "COMPLETED") processStatus = AssetProcessStatusEnum::COMPLETED;
+            else if (statusStr == "FAILED") processStatus = AssetProcessStatusEnum::FAILED;
+            else processStatus = AssetProcessStatusEnum::INIT; // default
+        }
+        if (timelineJson.contains("processResult")) {
+            processResult = ProcessResultVo(timelineJson["processResult"]);
+        }
+        if (timelineJson.contains("status")) {
+            std::string statusStr = timelineJson["status"].get<std::string>();
+            if (statusStr == "ACTIVE") status = StatusEnum::ACTIVE;
+            else if (statusStr == "DELETED") status = StatusEnum::DELETED;
+            else if (statusStr == "DRAFT") status = StatusEnum::DRAFT;
+            else status = StatusEnum::ACTIVE; // default
+        }
+        if (timelineJson.contains("createdAt")) {
+            createdAt = timelineJson["createdAt"].get<std::string>();
+        }
+        if (timelineJson.contains("modifiedAt")) {
+            modifiedAt = timelineJson["modifiedAt"].get<std::string>();
+        }
+        // Internal ID fields (JsonIgnore in Java but useful for C++)
         if (timelineJson.contains("id")) {
-            id = timelineJson["id"].get<std::string>();
+            id = timelineJson["id"].get<long>();
+        }
+        if (timelineJson.contains("projectId")) {
+            projectId = timelineJson["projectId"].get<long>();
         }
         if (timelineJson.contains("assetId")) {
-            assetId = timelineJson["assetId"].get<std::string>();
+            assetId = timelineJson["assetId"].get<long>();
+        }
+        if (timelineJson.contains("sceneId")) {
+            sceneId = timelineJson["sceneId"].get<long>();
         }
     }
     
-    std::string uuid;
-    std::string sceneUuid;
+    // Main fields matching Java ProjectTimelineVo - keeping core fields non-optional for compatibility
+    std::string timelineUuid;
     std::string projectUuid;
     std::string assetUuid;
-    ProjectTimelineCategoryEnum category;
-    int timeOffsetInScene{0};    // ms offset within scene
-    int timeOffsetInProject{0};  // ms offset within project
-    int duration{0};             // ms duration
-    int startTime{0};           // asset start time
-    int endTime{0};             // asset end time
-    double volume{1.0};         // volume multiplier
-    bool mute{false};
-    double speed{1.0};
-    std::string blendMode{"normal"}; // visual blend mode (e.g., normal, multiply)
+    std::string sceneUuid;
+    ProjectTimelineCategoryEnum category{ProjectTimelineCategoryEnum::MAIN_STORY};
+    int timeOffsetInProject{0};  // Keep as int for backward compatibility
+    int startTime{0};            // Keep as int for backward compatibility  
+    int endTime{0};              // Keep as int for backward compatibility
+    double volume{1.0};          // Keep as double for backward compatibility
+    bool audioExist{false};
     
-    // Crop and animation data
-    std::optional<json> cropData;
-    std::optional<json> kenburnsData;
+    // New Java fields as optional
+    std::optional<double> scale;
+    std::optional<int> zIndex;
+    std::optional<bool> visible;
+    std::optional<std::array<double, 2>> coordOffset; // Double[] in Java
+    std::optional<int> timelineDuration;
+    std::optional<CropConfigBo> cropData;
+    std::optional<KenburnsConfigBo> kenburnsData;
+    std::optional<AssetProcessStatusEnum> processStatus;
+    std::optional<ProcessResultVo> processResult;
+    std::optional<StatusEnum> status;
+    std::optional<std::string> createdAt;  // Date in Java, simplified as string
+    std::optional<std::string> modifiedAt; // Date in Java, simplified as string
     
-    // Internal IDs (for patch generation)
-    std::optional<std::string> id;
-    std::optional<std::string> assetId;
+    // JsonIgnore fields from Java (for internal use)
+    std::optional<long> id;
+    std::optional<long> projectId;
+    std::optional<long> assetId;
+    std::optional<long> sceneId;
     
-    // 添加 toJson 方法用于序列化
-    json toJson() const {
-        json result;
+    // Java getter method equivalents
+    std::string getTimelineUuid() const {
+        return id.has_value() ? std::to_string(id.value()) : timelineUuid;
+    }
+    
+    std::string getProjectUuid() const {
+        return projectId.has_value() ? std::to_string(projectId.value()) : projectUuid;
+    }
+    
+    std::string getAssetUuid() const {
+        return assetId.has_value() ? std::to_string(assetId.value()) : assetUuid;
+    }
+    
+    std::string getSceneUuid() const {
+        return sceneId.has_value() ? std::to_string(sceneId.value()) : sceneUuid;
+    }
+    
+    // Java computed method: getTimelineDuration()
+    int getTimelineDuration() const {
+        if (timelineDuration.has_value()) {
+            return timelineDuration.value();
+        }
+        return endTime - startTime;
+    }
+    
+    // Serialization method
+    nlohmann::json toJson() const {
+        nlohmann::json result;
         
-        result["timelineUuid"] = uuid;
-        result["sceneUuid"] = sceneUuid;
+        result["timelineUuid"] = timelineUuid;
         result["projectUuid"] = projectUuid;
         result["assetUuid"] = assetUuid;
+        result["sceneUuid"] = sceneUuid;
         
-        // 分类枚举转换
+        // Category enum conversion
         switch (category) {
             case ProjectTimelineCategoryEnum::MAIN_STORY: result["category"] = "MAIN_STORY"; break;
             case ProjectTimelineCategoryEnum::INTRO: result["category"] = "INTRO"; break;
@@ -252,28 +748,60 @@ struct ExtendedTimeline {
             case ProjectTimelineCategoryEnum::BACKGROUND_MUSIC: result["category"] = "BACKGROUND_MUSIC"; break;
         }
         
-        result["timeOffsetInScene"] = timeOffsetInScene;
         result["timeOffsetInProject"] = timeOffsetInProject;
-        result["duration"] = duration;
         result["startTime"] = startTime;
         result["endTime"] = endTime;
         result["volume"] = volume;
-        result["mute"] = mute;
-        result["speed"] = speed;
-        result["blendMode"] = blendMode;
+        result["audioExist"] = audioExist;
         
-        // Optional 字段
+        // Optional fields
+        if (scale.has_value()) {
+            result["scale"] = scale.value();
+        }
+        if (zIndex.has_value()) {
+            result["zIndex"] = zIndex.value();
+        }
+        if (visible.has_value()) {
+            result["visible"] = visible.value();
+        }
+        if (coordOffset.has_value()) {
+            result["coordOffset"] = nlohmann::json::array({coordOffset.value()[0], coordOffset.value()[1]});
+        }
+        if (timelineDuration.has_value()) {
+            result["timelineDuration"] = timelineDuration.value();
+        }
         if (cropData.has_value()) {
-            result["cropData"] = cropData.value();
+            result["cropData"] = cropData.value().toJson();
         }
         if (kenburnsData.has_value()) {
-            result["kenburnsData"] = kenburnsData.value();
+            result["kenburnsData"] = kenburnsData.value().toJson();
         }
-        if (id.has_value()) {
-            result["id"] = id.value();
+        if (processStatus.has_value()) {
+            switch (processStatus.value()) {
+                case AssetProcessStatusEnum::INIT: result["processStatus"] = "INIT"; break;
+                case AssetProcessStatusEnum::DOWNLOADING: result["processStatus"] = "DOWNLOADING"; break;
+                case AssetProcessStatusEnum::UPLOADING: result["processStatus"] = "UPLOADING"; break;
+                case AssetProcessStatusEnum::PROCESSING: result["processStatus"] = "PROCESSING"; break;
+                case AssetProcessStatusEnum::PUBLISHING: result["processStatus"] = "PUBLISHING"; break;
+                case AssetProcessStatusEnum::COMPLETED: result["processStatus"] = "COMPLETED"; break;
+                case AssetProcessStatusEnum::FAILED: result["processStatus"] = "FAILED"; break;
+            }
         }
-        if (assetId.has_value()) {
-            result["assetId"] = assetId.value();
+        if (processResult.has_value()) {
+            result["processResult"] = processResult.value().toJson();
+        }
+        if (status.has_value()) {
+            switch (status.value()) {
+                case StatusEnum::ACTIVE: result["status"] = "ACTIVE"; break;
+                case StatusEnum::DELETED: result["status"] = "DELETED"; break;
+                case StatusEnum::DRAFT: result["status"] = "DRAFT"; break;
+            }
+        }
+        if (createdAt.has_value()) {
+            result["createdAt"] = createdAt.value();
+        }
+        if (modifiedAt.has_value()) {
+            result["modifiedAt"] = modifiedAt.value();
         }
         
         return result;
@@ -2999,6 +3527,141 @@ NLOHMANN_JSON_SERIALIZE_ENUM(EntityTypeEnum, {
     {EntityTypeEnum::AVATAR_LOOK, "avatar_look"},
     {EntityTypeEnum::WORKSPACE, "workspace"},
     {EntityTypeEnum::TEAMSPACE, "teamspace"}
+})
+
+NLOHMANN_JSON_SERIALIZE_ENUM(TextOnScreenPositionTypeEnum, {
+    {TextOnScreenPositionTypeEnum::TOP_LEFT, 11},
+    {TextOnScreenPositionTypeEnum::TOP_CENTER, 12},
+    {TextOnScreenPositionTypeEnum::TOP_RIGHT, 13},
+    {TextOnScreenPositionTypeEnum::MIDDLE_LEFT, 21},
+    {TextOnScreenPositionTypeEnum::MIDDLE_CENTER, 22},
+    {TextOnScreenPositionTypeEnum::MIDDLE_RIGHT, 23},
+    {TextOnScreenPositionTypeEnum::BOTTOM_LEFT, 31},
+    {TextOnScreenPositionTypeEnum::BOTTOM_CENTER, 32},
+    {TextOnScreenPositionTypeEnum::BOTTOM_RIGHT, 33}
+})
+
+NLOHMANN_JSON_SERIALIZE_ENUM(TextAlignEnum, {
+    {TextAlignEnum::NONE, 0},
+    {TextAlignEnum::LEFT, 1},
+    {TextAlignEnum::CENTER, 2},
+    {TextAlignEnum::RIGHT, 3}
+})
+
+NLOHMANN_JSON_SERIALIZE_ENUM(HighlightTypeEnum, {
+    {HighlightTypeEnum::KEYWORDS, "KEYWORDS"},
+    {HighlightTypeEnum::SENTENCES, "SENTENCES"}
+})
+
+NLOHMANN_JSON_SERIALIZE_ENUM(HighlightStyleTypeEnum, {
+    {HighlightStyleTypeEnum::WORD_HIGHLIGHT, "WORD_HIGHLIGHT"},
+    {HighlightStyleTypeEnum::BACKGROUND_HIGHLIGHT, "BACKGROUND_HIGHLIGHT"}
+})
+
+NLOHMANN_JSON_SERIALIZE_ENUM(AssetProcessStatusEnum, {
+    {AssetProcessStatusEnum::INIT, 0},
+    {AssetProcessStatusEnum::DOWNLOADING, 1},
+    {AssetProcessStatusEnum::UPLOADING, 2},
+    {AssetProcessStatusEnum::PROCESSING, 3},
+    {AssetProcessStatusEnum::PUBLISHING, 6},
+    {AssetProcessStatusEnum::COMPLETED, 9},
+    {AssetProcessStatusEnum::FAILED, 12}
+})
+
+NLOHMANN_JSON_SERIALIZE_ENUM(ProcessActionStatusEnum, {
+    {ProcessActionStatusEnum::SUCCESS, "SUCCESS"},
+    {ProcessActionStatusEnum::FAILED, "FAILED"},
+    {ProcessActionStatusEnum::PROCESSING, "PROCESSING"},
+    {ProcessActionStatusEnum::PENDING, "PENDING"}
+})
+
+NLOHMANN_JSON_SERIALIZE_ENUM(SubtitleAnimationTypeEnum, {
+    {SubtitleAnimationTypeEnum::WORD_HIGHLIGHT, 1},
+    {SubtitleAnimationTypeEnum::BOX_HIGHLIGHT, 2},
+    {SubtitleAnimationTypeEnum::POPING, 3}
+})
+
+NLOHMANN_JSON_SERIALIZE_ENUM(TranscriptModifiedStatusEnum, {
+    {TranscriptModifiedStatusEnum::NO_CHANGED, "NO_CHANGED"},
+    {TranscriptModifiedStatusEnum::CHANGED, "CHANGED"},
+    {TranscriptModifiedStatusEnum::SYNTHETIC_REDO, "SYNTHETIC_REDO"},
+    {TranscriptModifiedStatusEnum::RECOMMEND_FOOTAGE_REDO, "RECOMMEND_FOOTAGE_REDO"},
+    {TranscriptModifiedStatusEnum::ALL_REDO, "ALL_REDO"}
+})
+
+NLOHMANN_JSON_SERIALIZE_ENUM(MediaTypeEnum, {
+    {MediaTypeEnum::ALL, 0},
+    {MediaTypeEnum::VIDEO, 1},
+    {MediaTypeEnum::AUDIO, 2},
+    {MediaTypeEnum::IMAGE, 3},
+    {MediaTypeEnum::PDF, 4},
+    {MediaTypeEnum::PPT, 5}
+})
+
+NLOHMANN_JSON_SERIALIZE_ENUM(ProjectAssetTypeEnum, {
+    {ProjectAssetTypeEnum::GROUP_RECORDING, 1},
+    {ProjectAssetTypeEnum::SELF_RECORDING, 2},
+    {ProjectAssetTypeEnum::IMPORTED_FROM_LIBRARY, 3},
+    {ProjectAssetTypeEnum::IMPORTED_FROM_SHARING, 4},
+    {ProjectAssetTypeEnum::IMPORTED_FROM_STOCK, 5},
+    {ProjectAssetTypeEnum::UPLOADED_FROM_LOCAL, 6},
+    {ProjectAssetTypeEnum::COMPOSED_BY_SEQUENCE, 7},
+    {ProjectAssetTypeEnum::IMPORTED_FROM_INTEGRATE, 8},
+    {ProjectAssetTypeEnum::IMPORTED_FROM_RECOMMENDATION, 9},
+    {ProjectAssetTypeEnum::GENERATED_BY_AI, 10},
+    {ProjectAssetTypeEnum::QUICK_CAPTURE, 12},
+    {ProjectAssetTypeEnum::EXPORT_FROM_PROJECT_VIDEO, 14},
+    {ProjectAssetTypeEnum::DOWNLOADED_FROM_EXTERNAL, 15},
+    {ProjectAssetTypeEnum::IMPORTED_FROM_PERSONAL_STOCK, 16},
+    {ProjectAssetTypeEnum::SCENE_VOICE_OVER, 17},
+    {ProjectAssetTypeEnum::SCENES_SYNTHETIC_VOICE_OVER, 18},
+    {ProjectAssetTypeEnum::STEP_VIDEO_PICTURES, 19},
+    {ProjectAssetTypeEnum::DOCUMENT_SCREEN_SHOT, 20},
+    {ProjectAssetTypeEnum::DOCUMENT_INLINE, 21},
+    {ProjectAssetTypeEnum::SCENE_NARRATION_VOICE_OVER, 22},
+    {ProjectAssetTypeEnum::AVATAR_PREVIEW, 25}
+})
+
+NLOHMANN_JSON_SERIALIZE_ENUM(StockLicenseEnum, {
+    {StockLicenseEnum::ROYALTY_FREE, "ROYALTY_FREE"},
+    {StockLicenseEnum::RIGHTS_MANAGED, "RIGHTS_MANAGED"},
+    {StockLicenseEnum::EDITORIAL_USE, "EDITORIAL_USE"},
+    {StockLicenseEnum::EXTENDED_LICENSE, "EXTENDED_LICENSE"}
+})
+
+NLOHMANN_JSON_SERIALIZE_ENUM(StockProviderCodeEnum, {
+    {StockProviderCodeEnum::PEXELS, "PEXELS"},
+    {StockProviderCodeEnum::STORYBLOCKS, "STORYBLOCKS"},
+    {StockProviderCodeEnum::GETTYIMAGES, "GETTYIMAGES"},
+    {StockProviderCodeEnum::UNSPLASH, "UNSPLASH"},
+    {StockProviderCodeEnum::PIXABAY, "PIXABAY"}
+})
+
+NLOHMANN_JSON_SERIALIZE_ENUM(ResolutionEnum, {
+    {ResolutionEnum::RES360P, 1}
+})
+
+NLOHMANN_JSON_SERIALIZE_ENUM(CropTypeEnum, {
+    {CropTypeEnum::MANUAL, "MANUAL"},
+    {CropTypeEnum::AUTOMATIC, "AUTOMATIC"}
+})
+
+NLOHMANN_JSON_SERIALIZE_ENUM(ProjectVideoFormatEnum, {
+    {ProjectVideoFormatEnum::FORMAT_16_9, "FORMAT_16_9"},
+    {ProjectVideoFormatEnum::FORMAT_9_16, "FORMAT_9_16"},
+    {ProjectVideoFormatEnum::FORMAT_1_1, "FORMAT_1_1"}
+})
+
+NLOHMANN_JSON_SERIALIZE_ENUM(CropInterpolatorTypeEnum, {
+    {CropInterpolatorTypeEnum::LINEAR, "LINEAR"},
+    {CropInterpolatorTypeEnum::EASE_IN, "EASE_IN"},
+    {CropInterpolatorTypeEnum::EASE_OUT, "EASE_OUT"}
+})
+
+NLOHMANN_JSON_SERIALIZE_ENUM(AnimationTypeEnum, {
+    {AnimationTypeEnum::FADE, "FADE"},
+    {AnimationTypeEnum::SLIDE, "SLIDE"},
+    {AnimationTypeEnum::ZOOM, "ZOOM"}
 })
 
 // Scale-related structures (matching Java PsScaleParamsBo, PsTimelineScaleBo, PsSceneScaleReqBody)

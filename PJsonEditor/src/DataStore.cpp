@@ -35,12 +35,14 @@ void ExtendedDataStore::recomputeOffsets() {
     for (auto& scene : project->scenes) {
         scene.timeOffsetInProject = totalOffset;
         
-        // Update timelines within each scene
+        // Update timelines within each scene (following Java logic)
         for (auto& timeline : scene.aRolls) {
-            timeline.timeOffsetInProject = totalOffset + timeline.timeOffsetInScene;
+            // Following Java logic: timeOffsetInProject used directly, no timeOffsetInScene field
+            timeline.timeOffsetInProject = totalOffset;
         }
         for (auto& timeline : scene.bRolls) {
-            timeline.timeOffsetInProject = totalOffset + timeline.timeOffsetInScene;
+            // Following Java logic: timeOffsetInProject used directly, no timeOffsetInScene field
+            timeline.timeOffsetInProject = totalOffset;
         }
         for (auto& voiceOver : scene.voiceOvers) {
             voiceOver.timeOffsetInProject = totalOffset + voiceOver.timeOffsetInProject;
@@ -52,10 +54,11 @@ void ExtendedDataStore::recomputeOffsets() {
     // Also update project-level timelines 
     totalOffset = 0;
     for (const auto& scene : project->scenes) {
-        // Update all timelines that belong to this scene
+        // Update all timelines that belong to this scene (following Java logic)
         for (auto& timeline : project->timelines) {
             if (timeline.sceneUuid == scene.sceneUuid) {
-                timeline.timeOffsetInProject = totalOffset + timeline.timeOffsetInScene;
+                // Following Java logic: timeOffsetInProject used directly, no timeOffsetInScene field
+                timeline.timeOffsetInProject = totalOffset;
             }
         }
         totalOffset += scene.duration.value_or(0);
