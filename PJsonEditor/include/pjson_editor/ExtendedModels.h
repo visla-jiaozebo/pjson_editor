@@ -1135,33 +1135,198 @@ struct AnimationAttributes {
     }
 };
 
-// Offset text structure matching Java OffsetText
-struct OffsetText {
-    std::string text;
-    int startTime;
-    int endTime;
+// CSS Style Highlight structures matching Java CssStyleHighlightVo
+struct CssStyleHighlightVo {
+    // Nested class for outline styling
+    struct OutlineVo {
+        std::string color;
+        float width{40.0f};
+        
+        OutlineVo() = default;
+        OutlineVo(const nlohmann::json& data) {
+            if (data.contains("color") && !data["color"].is_null()) {
+                color = data["color"];
+            }
+            if (data.contains("width") && !data["width"].is_null()) {
+                width = data["width"];
+            }
+        }
+        
+        nlohmann::json toJson() const {
+            nlohmann::json result;
+            if (!color.empty()) result["color"] = color;
+            result["width"] = width;
+            return result;
+        }
+    };
     
-    OffsetText() = default;
-    OffsetText(const nlohmann::json& data) {
+    // Nested class for shadow styling
+    struct CssShadowVo {
+        std::string color;
+        int style{0};
+        int offsetX{5};
+        int offsetY{5};
+        float blur{5.0f};
+        
+        CssShadowVo() = default;
+        CssShadowVo(const nlohmann::json& data) {
+            if (data.contains("color") && !data["color"].is_null()) {
+                color = data["color"];
+            }
+            if (data.contains("style") && !data["style"].is_null()) {
+                style = data["style"];
+            }
+            if (data.contains("offsetX") && !data["offsetX"].is_null()) {
+                offsetX = data["offsetX"];
+            }
+            if (data.contains("offsetY") && !data["offsetY"].is_null()) {
+                offsetY = data["offsetY"];
+            }
+            if (data.contains("blur") && !data["blur"].is_null()) {
+                blur = data["blur"];
+            }
+        }
+        
+        nlohmann::json toJson() const {
+            nlohmann::json result;
+            if (!color.empty()) result["color"] = color;
+            result["style"] = style;
+            result["offsetX"] = offsetX;
+            result["offsetY"] = offsetY;
+            result["blur"] = blur;
+            return result;
+        }
+    };
+    
+    // Nested class for background styling
+    struct CssBackgroundVo {
+        std::string color;
+        int radius{16};
+        int paddingX{8};
+        int paddingY{8};
+        
+        CssBackgroundVo() = default;
+        CssBackgroundVo(const nlohmann::json& data) {
+            if (data.contains("color") && !data["color"].is_null()) {
+                color = data["color"];
+            }
+            if (data.contains("radius") && !data["radius"].is_null()) {
+                radius = data["radius"];
+            }
+            if (data.contains("paddingX") && !data["paddingX"].is_null()) {
+                paddingX = data["paddingX"];
+            }
+            if (data.contains("paddingY") && !data["paddingY"].is_null()) {
+                paddingY = data["paddingY"];
+            }
+        }
+        
+        nlohmann::json toJson() const {
+            nlohmann::json result;
+            if (!color.empty()) result["color"] = color;
+            result["radius"] = radius;
+            result["paddingX"] = paddingX;
+            result["paddingY"] = paddingY;
+            return result;
+        }
+    };
+    
+    // Nested class for highlight styling
+    struct HighLightVo {
+        std::string color;
+        int fontSize;
+        
+        HighLightVo() = default;
+        HighLightVo(const nlohmann::json& data) {
+            if (data.contains("color") && !data["color"].is_null()) {
+                color = data["color"];
+            }
+            if (data.contains("fontSize") && !data["fontSize"].is_null()) {
+                fontSize = data["fontSize"];
+            }
+        }
+        
+        nlohmann::json toJson() const {
+            nlohmann::json result;
+            if (!color.empty()) result["color"] = color;
+            result["fontSize"] = fontSize;
+            return result;
+        }
+    };
+    
+    // Main fields matching Java CssStyleHighlightVo
+    CssBackgroundVo box;
+    HighLightVo word;
+    std::vector<json> words; // List<HighlightItem> words from Java
+    
+    CssStyleHighlightVo() = default;
+    CssStyleHighlightVo(const nlohmann::json& data) {
+        if (data.contains("box") && !data["box"].is_null()) {
+            box = CssBackgroundVo(data["box"]);
+        }
+        if (data.contains("word") && !data["word"].is_null()) {
+            word = HighLightVo(data["word"]);
+        }
+        if (data.contains("words") && data["words"].is_array()) {
+            for (const auto& item : data["words"]) {
+                words.push_back(item);
+            }
+        }
+    }
+    
+    nlohmann::json toJson() const {
+        nlohmann::json result;
+        result["box"] = box.toJson();
+        result["word"] = word.toJson();
+        if (!words.empty()) {
+            nlohmann::json wordsArray = nlohmann::json::array();
+            for (const auto& w : words) {
+                wordsArray.push_back(w);
+            }
+            result["words"] = wordsArray;
+        }
+        return result;
+    }
+};
+
+// Time-based text on screen style structure matching Java PsTimeTextOnScreenStyleBo
+struct PsTimeTextOnScreenStyleBo {
+    std::string text;
+    int start;  // 相对于scene的text的显示开始时间
+    int end;    // 相对于scene的text的显示结束时间
+    
+    PsTimeTextOnScreenStyleBo() = default;
+    PsTimeTextOnScreenStyleBo(const nlohmann::json& data) {
         if (data.contains("text") && !data["text"].is_null()) {
             text = data["text"];
         }
-        if (data.contains("startTime") && !data["startTime"].is_null()) {
-            startTime = data["startTime"];
+        if (data.contains("start") && !data["start"].is_null()) {
+            start = data["start"];
         }
-        if (data.contains("endTime") && !data["endTime"].is_null()) {
-            endTime = data["endTime"];
+        if (data.contains("end") && !data["end"].is_null()) {
+            end = data["end"];
+        }
+        
+        // Support legacy field names for backward compatibility
+        if (data.contains("startTime") && !data.contains("start")) {
+            start = data["startTime"];
+        }
+        if (data.contains("endTime") && !data.contains("end")) {
+            end = data["endTime"];
         }
     }
     
     nlohmann::json toJson() const {
         nlohmann::json result;
         if (!text.empty()) result["text"] = text;
-        result["startTime"] = startTime;
-        result["endTime"] = endTime;
+        result["start"] = start;
+        result["end"] = end;
         return result;
     }
 };
+
+// Legacy alias for backward compatibility
+using OffsetText = PsTimeTextOnScreenStyleBo;
 
 // Base text on screen attributes structure matching Java PsTextOnScreenAttributesVo
 struct PsTextOnScreenAttributesVo {
@@ -1370,13 +1535,21 @@ struct PsSubtitleOnScreenAttributesVo : public PsTextOnScreenAttributesVo {
     bool highlightEnable{false};
     std::string highlightColor;
     
+    // Deprecated highlight fields (for compatibility)
+    HighlightTypeEnum highlightType{HighlightTypeEnum::KEYWORDS};
+    HighlightStyleTypeEnum highlightStyleType{HighlightStyleTypeEnum::WORD_HIGHLIGHT};
+    
+    // New highlight fields
+    int highlightSize{0};
+    CssStyleHighlightVo highlightCssStyle;
+    
     // Animation settings
     bool animationEnable{false};
     SubtitleAnimationTypeEnum animationType{SubtitleAnimationTypeEnum::WORD_HIGHLIGHT};
     AnimationAttributes animationAttributes;
     
-    // Offset texts for timing
-    std::vector<OffsetText> offsetTexts;
+    // Offset texts for timing (using PsTimeTextOnScreenStyleBo)
+    std::vector<PsTimeTextOnScreenStyleBo> offsetTexts;
     
     PsSubtitleOnScreenAttributesVo() = default;
     PsSubtitleOnScreenAttributesVo(const nlohmann::json& data) : PsTextOnScreenAttributesVo(data) {
@@ -1386,6 +1559,23 @@ struct PsSubtitleOnScreenAttributesVo : public PsTextOnScreenAttributesVo {
         if (data.contains("highlightColor") && !data["highlightColor"].is_null()) {
             highlightColor = data["highlightColor"];
         }
+        
+        // Deprecated highlight fields
+        if (data.contains("highlightType") && !data["highlightType"].is_null()) {
+            highlightType = static_cast<HighlightTypeEnum>(data["highlightType"]);
+        }
+        if (data.contains("highlightStyleType") && !data["highlightStyleType"].is_null()) {
+            highlightStyleType = static_cast<HighlightStyleTypeEnum>(data["highlightStyleType"]);
+        }
+        
+        // New highlight fields
+        if (data.contains("highlightSize") && !data["highlightSize"].is_null()) {
+            highlightSize = data["highlightSize"];
+        }
+        if (data.contains("highlightCssStyle") && !data["highlightCssStyle"].is_null()) {
+            highlightCssStyle = CssStyleHighlightVo(data["highlightCssStyle"]);
+        }
+        
         if (data.contains("animationEnable") && !data["animationEnable"].is_null()) {
             animationEnable = data["animationEnable"];
         }
@@ -1397,9 +1587,46 @@ struct PsSubtitleOnScreenAttributesVo : public PsTextOnScreenAttributesVo {
         }
         if (data.contains("offsetTexts") && data["offsetTexts"].is_array()) {
             for (const auto& item : data["offsetTexts"]) {
-                offsetTexts.emplace_back(OffsetText(item));
+                offsetTexts.emplace_back(PsTimeTextOnScreenStyleBo(item));
             }
         }
+    }
+    
+    // Java equivalent methods
+    bool getHighLightEnable() const {
+        return highlightEnable;
+    }
+    
+    bool getHighlightEnable() const {
+        return highlightEnable;
+    }
+    
+    CssStyleHighlightVo getHighlightCssStyle() {
+        if (highlightCssStyle.box.color.empty() && highlightCssStyle.word.color.empty()) {
+            // Initialize with default values like Java version
+            highlightCssStyle.box.color = highlightColor;
+            highlightCssStyle.word.color = highlightColor;
+            highlightCssStyle.word.fontSize = size;
+        }
+        return highlightCssStyle;
+    }
+    
+    int getTextSize() const {
+        return size;
+    }
+    
+    std::string getTextColor() const {
+        return color;
+    }
+    
+    std::string getTextFont() const {
+        return font;
+    }
+    
+    std::string getTextAlign() const {
+        return static_cast<int>(align) == static_cast<int>(TextAlignEnum::LEFT) ? "left" :
+               static_cast<int>(align) == static_cast<int>(TextAlignEnum::CENTER) ? "center" :
+               static_cast<int>(align) == static_cast<int>(TextAlignEnum::RIGHT) ? "right" : "none";
     }
     
     nlohmann::json toJson() const {
@@ -1407,6 +1634,15 @@ struct PsSubtitleOnScreenAttributesVo : public PsTextOnScreenAttributesVo {
         
         result["highlightEnable"] = highlightEnable;
         if (!highlightColor.empty()) result["highlightColor"] = highlightColor;
+        
+        // Deprecated fields (still included for compatibility)
+        result["highlightType"] = static_cast<int>(highlightType);
+        result["highlightStyleType"] = static_cast<int>(highlightStyleType);
+        
+        // New highlight fields
+        result["highlightSize"] = highlightSize;
+        result["highlightCssStyle"] = highlightCssStyle.toJson();
+        
         result["animationEnable"] = animationEnable;
         result["animationType"] = static_cast<int>(animationType);
         result["animationAttributes"] = animationAttributes.toJson();

@@ -1695,13 +1695,13 @@ ApiResult ExtendedControllerAPI::changeHighlight(const EditSceneHighLightReqBody
         scene->textOnScreen = TextOnScreen();
     }
     
-    // Convert string highlights to OffsetText objects
-    std::vector<OffsetText> offsetTexts;
+    // Convert string highlights to PsTimeTextOnScreenStyleBo objects
+    std::vector<PsTimeTextOnScreenStyleBo> offsetTexts;
     for (const auto& highlight : reqBody.highLights) {
-        OffsetText offsetText;
+        PsTimeTextOnScreenStyleBo offsetText;
         offsetText.text = highlight;
-        offsetText.startTime = 0; // Default values, may need to be set based on requirements
-        offsetText.endTime = 0;
+        offsetText.start = 0; // Default values, may need to be set based on requirements
+        offsetText.end = 0;
         offsetTexts.push_back(offsetText);
     }
     
