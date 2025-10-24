@@ -646,10 +646,10 @@ struct ExtendedTimeline {
             else status = StatusEnum::ACTIVE; // default
         }
         if (timelineJson.contains("createdAt")) {
-            createdAt = timelineJson["createdAt"].get<std::string>();
+            createdAt = timelineJson["createdAt"].get<long>();
         }
         if (timelineJson.contains("modifiedAt")) {
-            modifiedAt = timelineJson["modifiedAt"].get<std::string>();
+            modifiedAt = timelineJson["modifiedAt"].get<long>();
         }
         // Internal ID fields (JsonIgnore in Java but useful for C++)
         if (timelineJson.contains("id")) {
@@ -689,8 +689,8 @@ struct ExtendedTimeline {
     std::optional<AssetProcessStatusEnum> processStatus;
     std::optional<ProcessResultVo> processResult;
     std::optional<StatusEnum> status;
-    std::optional<std::string> createdAt;  // Date in Java, simplified as string
-    std::optional<std::string> modifiedAt; // Date in Java, simplified as string
+    std::optional<long> createdAt;  // Date in Java, handled as long timestamp
+    std::optional<long> modifiedAt; // Date in Java, handled as long timestamp
     
     // JsonIgnore fields from Java (for internal use)
     std::optional<long> id;
