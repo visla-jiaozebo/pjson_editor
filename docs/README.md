@@ -1,4 +1,15 @@
 ## client应该如何调用
+### 编译 web 库
+```bash
+./build_wasm.sh
+```
+该脚本会生成 wasm 库文件在 `./build_wasm/PJsonEditor/pjson_editor_wasm.wasm` 和 `./build_wasm/PJsonEditor/pjson_editor_wasm.js` 。
+### lunch web demo
+```bash
+python ./py_static_proxy.py
+```
+访问 `http://localhost:8000/demo/index.html` 即可看到 demo 页面。demo 内部示例创建 scene, add scene, rename scene, delete scene 等功能。
+
 ### pjson_editor.hpp
 #### PJsonEditor::update
 PJsonEditor 需要传入 scene 列表作为参数来初始化整个 pjson 树。scene 列表从 `GET /v3/project/{projectUuid}/scene/list` 返回。

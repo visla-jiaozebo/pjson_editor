@@ -98,59 +98,6 @@
     <div id="status" class="status loading">Loading WASM module...</div>
 
     <div class="container">
-        <div class="controls panel">
-            <h2>Controls</h2>
-            <button id="createBtn" onclick="createEditor()" disabled>1. Create Editor</button>
-            <button id="updateBtn" onclick="updateWithSample()" disabled>2. Update with Sample Data</button>
-            <button id="callBtn" onclick="testCall()" disabled>3. Test API Call</button>
-            <button id="feedBtn" onclick="testFeedResponse()" disabled>4. Feed Server Response</button>
-            <button id="folderBtn" onclick="setDumpFolder()" disabled>5. Set Dump Folder</button>
-            <br>
-            <button onclick="clearOutput()">Clear Output</button>
-        </div>
-
-        <div class="panel">
-            <h3>Sample Request JSON</h3>
-            <textarea id="requestJson" placeholder="Edit request JSON here...">{
-  "method": "POST",
-  "url": "/v3/project/test-project-123/scene/add",
-  "body": {
-    "name": "New Scene",
-    "duration": 5000,
-    "sceneType": "DEFAULT"
-  },
-  "headers": {
-    "Content-Type": "application/json",
-    "Authorization": "Bearer test-token"
-  }
-}</textarea>
-        </div>
-
-        <div class="panel">
-            <h3>Sample Scene Data JSON</h3>
-            <textarea id="sceneDataJson" placeholder="Edit scene data JSON here...">{
-  "scenes": [
-    {
-      "uuid": "scene-1",
-      "name": "Introduction Scene",
-      "duration": 5000,
-      "timeOffsetInProject": 0,
-      "sceneType": "INTRO"
-    },
-    {
-      "uuid": "scene-2", 
-      "name": "Main Content Scene",
-      "duration": 10000,
-      "timeOffsetInProject": 5000,
-      "sceneType": "DEFAULT"
-    }
-  ],
-  "project": {
-    "uuid": "test-project-123",
-    "name": "Sample Project"
-  }
-}</textarea>
-        </div>
     </div>
 
     <div class="panel">
@@ -166,10 +113,9 @@
         Module['onRuntimeInitialized'] = async function () {
             log('✅ PJsonEditor WASM module loaded successfully!');
             setStatus('ready', 'WASM module ready - You can now use the controls');
-            enableButton('createBtn');
 
             // get token
-            let ab = await (await fetch("/TOKEN_FILE")).arrayBuffer();
+            let ab = await (await fetch("/demo/TOKEN_FILE")).arrayBuffer();
             const token = new TextDecoder("utf-8").decode(ab);
             log('Token fetched: ' + token.slice(0, 10) + '...');
             console.warn('Token fetched: ' + token.slice(0, 10) + '...');
@@ -196,16 +142,6 @@
             statusElement.textContent = message;
         }
 
-        function enableButton(buttonId) {
-            document.getElementById(buttonId).disabled = false;
-        }
-
-        function enableAllButtons() {
-            ['updateBtn', 'callBtn', 'feedBtn', 'folderBtn'].forEach(id => {
-                enableButton(id);
-            });
-        }
-
         function clearOutput() {
             document.getElementById('output').textContent = '';
         }
@@ -217,9 +153,6 @@
                 if (success) {
                     log('✅ Editor created successfully!');
                     editorCreated = true;
-                    enableAllButtons();
-                    document.getElementById('createBtn').textContent = '✅ Editor Created';
-                    document.getElementById('createBtn').disabled = true;
                 } else {
                     log('❌ Failed to create editor');
                 }
@@ -227,142 +160,6 @@
                 log('❌ Error creating editor: ' + e.message);
             }
         }
-
-        function updateWithSample() {
-            if (!editorCreated) {
-                log('⚠️ Please create editor first');
-                return;
-            }
-
-            try {
-                log('📊 Updating editor with sample scene data...');
-                const sampleData = document.getElementById('sceneDataJson').value;
-
-                // Validate JSON
-                JSON.parse(sampleData);
-
-                const success = Module.updateEditor(sampleData);
-                if (success) {
-                    log('✅ Editor updated successfully!');
-                } else {
-                    log('❌ Failed to update editor');
-                }
-            } catch (e) {
-                log('❌ Error updating editor: ' + e.message);
-            }
-        }
-
-        function testCall() {
-            if (!editorCreated) {
-                log('⚠️ Please create editor first');
-                return;
-            }
-
-            try {
-                log('📞 Making API call to editor...');
-                const requestData = document.getElementById('requestJson').value;
-
-                // Validate JSON
-                JSON.parse(requestData);
-
-                const response = Module.callEditor(requestData);
-                log('📋 API Response:');
-
-                try {
-                    // Pretty print the JSON response
-                    const parsed = JSON.parse(response);
-                    log(JSON.stringify(parsed, null, 2));
-                } catch {
-                    // If not valid JSON, just log as is
-                    log(response);
-                }
-            } catch (e) {
-                log('❌ Error making API call: ' + e.message);
-            }
-        }
-
-        function testFeedResponse() {
-            if (!editorCreated) {
-                log('⚠️ Please create editor first');
-                return;
-            }
-
-            try {
-                log('🍽️ Feeding server response to editor...');
-
-                const mockResponse = {
-                    "status_code": 200,
-                    "headers": {
-                        "Content-Type": "application/json"
-                    },
-                    "body": {
-                        "success": true,
-                        "data": {
-                            "sceneUuid": "scene-123",
-                            "message": "Scene added successfully"
-                        }
-                    }
-                };
-
-                const serverJson = {
-                    "scenes": [
-                        {
-                            "uuid": "scene-123",
-                            "name": "Server Scene",
-                            "duration": 8000
-                        }
-                    ]
-                };
-
-                const success = Module.feedServerResponse(
-                    JSON.stringify(mockResponse),
-                    JSON.stringify(serverJson)
-                );
-
-                if (success) {
-                    log('✅ Server response fed successfully!');
-                } else {
-                    log('❌ Failed to feed server response');
-                }
-            } catch (e) {
-                log('❌ Error feeding server response: ' + e.message);
-            }
-        }
-
-        function setDumpFolder() {
-            if (!editorCreated) {
-                log('⚠️ Please create editor first');
-                return;
-            }
-
-            try {
-                log('📁 Setting dump folder...');
-                const path = '/tmp/pjson_wasm_dumps';
-                Module.setDumpFolder(path);
-                log('✅ Dump folder set to: ' + path);
-            } catch (e) {
-                log('❌ Error setting dump folder: ' + e.message);
-            }
-        }
-
-        // Auto-format JSON textareas
-        document.getElementById('requestJson').addEventListener('blur', function () {
-            try {
-                const parsed = JSON.parse(this.value);
-                this.value = JSON.stringify(parsed, null, 2);
-            } catch (e) {
-                // Invalid JSON, leave as is
-            }
-        });
-
-        document.getElementById('sceneDataJson').addEventListener('blur', function () {
-            try {
-                const parsed = JSON.parse(this.value);
-                this.value = JSON.stringify(parsed, null, 2);
-            } catch (e) {
-                // Invalid JSON, leave as is
-            }
-        });
         function CHECK(condition, message) {
             if ((typeof condition === 'function') && !condition()) {
                 throw new Error(message || "Check failed");
@@ -511,7 +308,7 @@
     </script>
 
     <!-- Load the generated WASM module -->
-    <script src="pjson_editor_wasm.js"></script>
+    <script src="/build_wasm/PJsonEditor/pjson_editor_wasm.js"></script>
 </body>
 
 </html>
