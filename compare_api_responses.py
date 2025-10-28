@@ -10,7 +10,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Dict, List, Tuple, Any, Set
+from typing import Dict, List, Tuple, Any, Set, Optional
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -190,7 +190,7 @@ class JSONComparator:
                 if len(result.differences) > 3:
                     print(f"   • ... and {len(result.differences) - 3} more differences")
     
-    def generate_detailed_report(self, output_file: str | None = None) -> str:
+    def generate_detailed_report(self, output_file: Optional[str] = None) -> str:
         """Generate a detailed comparison report."""
         report_lines = []
         report_lines.append("=" * 80)
