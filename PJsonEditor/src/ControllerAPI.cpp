@@ -1927,7 +1927,7 @@ ApiResult ExtendedControllerAPI::setSceneScale(const PsSceneScaleReqBody& reqBod
         for (size_t i = 0; i < scene->aRolls.size(); ++i) {
             if (scene->aRolls[i].timelineUuid == scaleReq.timelineUuid) {  // Use Java field name
                 targetTimeline = &scene->aRolls[i];
-                timelinePath = "/scenes/" + reqBody.sceneUuid + "/aRolls/" + std::to_string(i);
+                timelinePath = "/scenes/" + reqBody.sceneUuid + "/arolls/" + std::to_string(i);
                 break;
             }
         }
@@ -1937,7 +1937,7 @@ ApiResult ExtendedControllerAPI::setSceneScale(const PsSceneScaleReqBody& reqBod
             for (size_t i = 0; i < scene->bRolls.size(); ++i) {
                 if (scene->bRolls[i].timelineUuid == scaleReq.timelineUuid) {  // Use Java field name
                     targetTimeline = &scene->bRolls[i];
-                    timelinePath = "/scenes/" + reqBody.sceneUuid + "/bRolls/" + std::to_string(i);
+                    timelinePath = "/scenes/" + reqBody.sceneUuid + "/brolls/" + std::to_string(i);
                     break;
                 }
             }
@@ -1953,24 +1953,31 @@ ApiResult ExtendedControllerAPI::setSceneScale(const PsSceneScaleReqBody& reqBod
             }
             
             // Update timeline with scale parameters
-            // Note: ExtendedTimeline doesn't have scale/coordOffset fields in current structure
-            // For now, we'll store in cropData as a workaround (like Java stores in ProjectTimeline)
-            nlohmann::json scaleData = {
-                {"scale", scaleReq.scale.value}
-            };
+            // Use the proper fields in ExtendedTimeline structure
+            targetTimeline->scale = scaleReq.scale.value;
             
             if (scaleReq.scale.coordOffset.has_value()) {
-                scaleData["coordOffset"] = scaleReq.scale.coordOffset.value();
+                const auto& coordVec = scaleReq.scale.coordOffset.value();
+                if (coordVec.size() >= 2) {
+                    std::array<double, 2> coordArray = {coordVec[0], coordVec[1]};
+                    targetTimeline->coordOffset = coordArray;
+                }
             }
-            
-            targetTimeline->cropData = scaleData;
             
             // Generate patch for timeline scale update
             patches.push_back({
                 {"op", "replace"},
-                {"path", timelinePath + "/cropData"},
-                {"value", scaleData}
+                {"path", timelinePath + "/scale"},
+                {"value", scaleReq.scale.value}
             });
+            
+            if (scaleReq.scale.coordOffset.has_value()) {
+                patches.push_back({
+                    {"op", "replace"},
+                    {"path", timelinePath + "/coordOffset"},
+                    {"value", scaleReq.scale.coordOffset.value()}
+                });
+            }
         }
     }
     
@@ -1993,24 +2000,22 @@ ApiResult ExtendedControllerAPI::setSceneScale(const PsSceneScaleReqBody& reqBod
             {"timelineUuid", timelineId}
         };
         
-        // Extract scale data from cropData (following Java backend logic)
-        if (timeline.cropData.has_value()) {
-            const auto& cropData = timeline.cropData.value();
-            nlohmann::json scaleBo = {
-                {"value", timeline.scale.value_or(1.0)}  // Use scale field from Java ProjectTimelineVo
-            };
-            
-            if (timeline.coordOffset.has_value()) {
-                scaleBo["coordOffset"] = timeline.coordOffset.value();
-            }
-            
-            scaleVo["scale"] = scaleBo;
+        // Extract scale data from timeline fields (following Java backend logic)
+        nlohmann::json scaleBo;
+        
+        // Get scale value from timeline.scale field
+        if (timeline.scale.has_value()) {
+            scaleBo["value"] = timeline.scale.value();
         } else {
-            // Default scale
-            scaleVo["scale"] = {
-                {"value", 1.0}
-            };
+            scaleBo["value"] = 1.0;  // Default value
         }
+        
+        // Get coordOffset from timeline.coordOffset field
+        if (timeline.coordOffset.has_value()) {
+            scaleBo["coordOffset"] = timeline.coordOffset.value();
+        }
+        
+        scaleVo["scale"] = scaleBo;
         
         resultData["scales"].push_back(scaleVo);
     };

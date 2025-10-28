@@ -1865,7 +1865,7 @@ struct PsTextOnScreenAttributesVo {
     TextOnScreenPositionTypeEnum positionType{TextOnScreenPositionTypeEnum::BOTTOM_CENTER};
     int zIndex{0};
     TextAlignEnum align{TextAlignEnum::CENTER};
-    std::string position;
+    std::vector<int> position;
     int width;
     CssStyleVo style;
     std::string text;
@@ -1927,7 +1927,14 @@ struct PsTextOnScreenAttributesVo {
             align = static_cast<TextAlignEnum>(data["align"]);
         }
         if (data.contains("position") && !data["position"].is_null()) {
-            position = data["position"];
+            if (data["position"].is_array()) {
+                position.clear();
+                for (const auto& pos : data["position"]) {
+                    if (pos.is_number_integer()) {
+                        position.push_back(pos.get<int>());
+                    }
+                }
+            }
         }
         if (data.contains("width") && !data["width"].is_null()) {
             width = data["width"];
@@ -2576,14 +2583,14 @@ struct ExtendedProjectScene {
         }
         
         // 时间线数组 - 使用真实的序列化（匹配 Java 字段名）
-        result["aRolls"] = nlohmann::json::array();
+        result["arolls"] = nlohmann::json::array();
         for (const auto& aroll : aRolls) {
-            result["aRolls"].push_back(aroll.toJson());
+            result["arolls"].push_back(aroll.toJson());
         }
-        
-        result["bRolls"] = nlohmann::json::array();
+
+        result["brolls"] = nlohmann::json::array();
         for (const auto& broll : bRolls) {
-            result["bRolls"].push_back(broll.toJson());
+            result["brolls"].push_back(broll.toJson());
         }
         
         result["voiceOvers"] = nlohmann::json::array();

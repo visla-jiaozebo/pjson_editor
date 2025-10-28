@@ -2,6 +2,8 @@
 #include <fstream>
 #include <memory>
 #include <string>
+#include <unistd.h>
+#include <climits>
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "api_request_client.hpp"
 #include <doctest/doctest.h>
